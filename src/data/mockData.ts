@@ -1,0 +1,511 @@
+import { ServiceCategory, UserProfile, Cooperative, Booking, Dispute, NotificationItem } from '../types';
+
+export const MOCK_SERVICES: ServiceCategory[] = [
+  {
+    id: 'plumbing',
+    name: 'Plumbing Services',
+    tagline: 'Pipe repairs, drainage, tap fitting & leak solutions',
+    description: 'Expert cooperative-verified plumbers equipped for residential repairs, leak detection, and sanitary installations.',
+    iconName: 'Wrench',
+    baseRate: 350,
+    rateUnit: 'hour',
+    popular: true,
+    activeCoopsCount: 6,
+    availableWorkersCount: 42,
+  },
+  {
+    id: 'electrical',
+    name: 'Electrical Work',
+    tagline: 'Wiring, switches, fuse repair & home appliance installation',
+    description: 'Licensed cooperative electricians specialized in safe electrical diagnostics, circuit wiring, and appliance setups.',
+    iconName: 'Zap',
+    baseRate: 400,
+    rateUnit: 'hour',
+    popular: true,
+    activeCoopsCount: 8,
+    availableWorkersCount: 58,
+  },
+  {
+    id: 'caregiving',
+    name: 'Elderly & Patient Care',
+    tagline: 'Compassionate part-time care, mobility assistance & companionship',
+    description: 'Trained and background-checked cooperative caregivers providing dignified, gentle patient and elderly care.',
+    iconName: 'HeartHandshake',
+    baseRate: 450,
+    rateUnit: 'hour',
+    popular: true,
+    activeCoopsCount: 5,
+    availableWorkersCount: 29,
+  },
+  {
+    id: 'domestic-help',
+    name: 'Domestic Help',
+    tagline: 'Home housekeeping, kitchen prep & daily household chores',
+    description: 'Reliable cooperative domestic helpers supporting family homes with respectful, vetted domestic tasks.',
+    iconName: 'Home',
+    baseRate: 300,
+    rateUnit: 'hour',
+    popular: true,
+    activeCoopsCount: 9,
+    availableWorkersCount: 74,
+  },
+  {
+    id: 'cleaning',
+    name: 'Deep Cleaning & Sanitization',
+    tagline: 'Kitchen, bathroom, floor scrubbing & full home sanitation',
+    description: 'Thorough eco-friendly cleaning crews using safe supplies and cooperative hygiene standards.',
+    iconName: 'Sparkles',
+    baseRate: 500,
+    rateUnit: 'service',
+    popular: true,
+    activeCoopsCount: 7,
+    availableWorkersCount: 38,
+  },
+  {
+    id: 'driving',
+    name: 'Professional Driving',
+    tagline: 'City transit, medical run driving & personal vehicle chauffeurs',
+    description: 'Experienced drivers with commercial endorsements and clean records available for flexible hourly blocks.',
+    iconName: 'Car',
+    baseRate: 350,
+    rateUnit: 'hour',
+    popular: false,
+    activeCoopsCount: 4,
+    availableWorkersCount: 26,
+  },
+];
+
+export const MOCK_COOPERATIVES: Cooperative[] = [
+  {
+    id: 'coop-1',
+    name: 'Kalyan Shramik Labour Cooperative Society',
+    registrationNumber: 'MSCS/CR/2018/491',
+    district: 'Central Metro District',
+    state: 'Karnataka',
+    foundedYear: 2018,
+    totalMembers: 412,
+    activeWorkers: 185,
+    servicesOffered: ['Electrical Work', 'Plumbing Services', 'Carpentry'],
+    welfareFundTotal: 485000,
+    rating: 4.9,
+  },
+  {
+    id: 'coop-2',
+    name: 'Sahakari Seva Workers Union',
+    registrationNumber: 'COOP/BLR/2020/118',
+    district: 'South City Division',
+    state: 'Karnataka',
+    foundedYear: 2020,
+    totalMembers: 280,
+    activeWorkers: 140,
+    servicesOffered: ['Domestic Help', 'Cleaning Services', 'Caregiving'],
+    welfareFundTotal: 320000,
+    rating: 4.8,
+  },
+  {
+    id: 'coop-3',
+    name: 'Janatha Civic Mobility & Technical Guild',
+    registrationNumber: 'GUILD/KT/2021/892',
+    district: 'North Tech Zone',
+    state: 'Karnataka',
+    foundedYear: 2021,
+    totalMembers: 195,
+    activeWorkers: 98,
+    servicesOffered: ['Professional Driving', 'Electrical Work', 'Plumbing Services'],
+    welfareFundTotal: 215000,
+    rating: 4.7,
+  }
+];
+
+export const MOCK_WORKERS: UserProfile[] = [
+  {
+    uid: 'worker-1',
+    name: 'Ramesh Kumar',
+    email: 'ramesh.worker@coopconnect.org',
+    photoURL: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?auto=format&fit=crop&q=80&w=250',
+    role: 'worker',
+    phone: '+91 98450 12345',
+    address: 'Indiranagar 2nd Stage, Bengaluru',
+    createdAt: '2023-04-10T10:00:00Z',
+    cooperativeId: 'coop-1',
+    cooperativeName: 'Kalyan Shramik Labour Cooperative Society',
+    profession: 'Electrician & Wireman',
+    skills: ['Domestic Wiring', 'Distribution Board Repair', 'Ceiling Fan Installation', 'Inverter Setup', 'Safety Audits'],
+    experienceYears: 6,
+    certificates: [
+      { id: 'cert-1', title: 'National Trade Certificate (NTC) Electrician', issuer: 'National Council for Vocational Training', issuedYear: '2018', verified: true },
+      { id: 'cert-2', title: 'Cooperative Safety & High Voltage Protocol', issuer: 'Kalyan Shramik Guild', issuedYear: '2022', verified: true }
+    ],
+    verificationStatus: 'verified',
+    availability: {
+      isAvailable: true,
+      preference: 'evening',
+      weeklySchedule: {
+        monday: { available: true, timeSlot: '6 PM - 9 PM' },
+        tuesday: { available: false, timeSlot: 'Not Available' },
+        wednesday: { available: true, timeSlot: '6 PM - 9 PM' },
+        thursday: { available: true, timeSlot: '6 PM - 9 PM' },
+        friday: { available: true, timeSlot: '6 PM - 10 PM' },
+        saturday: { available: true, timeSlot: '10 AM - 6 PM' },
+        sunday: { available: true, timeSlot: '10 AM - 2 PM' },
+      }
+    },
+    rating: 4.88,
+    totalJobs: 78,
+    currentWorkload: 'moderate',
+    earnings: {
+      today: 850,
+      week: 4200,
+      month: 16800,
+      total: 68400
+    },
+    welfareBalance: 12400
+  },
+  {
+    uid: 'worker-2',
+    name: 'Sunita Devi',
+    email: 'sunita.devi@coopconnect.org',
+    photoURL: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=250',
+    role: 'worker',
+    phone: '+91 97312 34567',
+    address: 'Koramangala 4th Block, Bengaluru',
+    createdAt: '2023-06-15T08:30:00Z',
+    cooperativeId: 'coop-2',
+    cooperativeName: 'Sahakari Seva Workers Union',
+    profession: 'Elderly Care Specialist',
+    skills: ['Patient Mobility Support', 'Medication Reminders', 'Post-Op Assistance', 'Vital Signs Monitoring', 'Dignified Companionship'],
+    experienceYears: 4,
+    certificates: [
+      { id: 'cert-3', title: 'Certified Geriatric Care Assistant', issuer: 'Red Cross Healthcare Academy', issuedYear: '2020', verified: true }
+    ],
+    verificationStatus: 'verified',
+    availability: {
+      isAvailable: true,
+      preference: 'morning',
+      weeklySchedule: {
+        monday: { available: true, timeSlot: '8 AM - 1 PM' },
+        tuesday: { available: true, timeSlot: '8 AM - 1 PM' },
+        wednesday: { available: true, timeSlot: '8 AM - 1 PM' },
+        thursday: { available: true, timeSlot: '8 AM - 1 PM' },
+        friday: { available: true, timeSlot: '8 AM - 1 PM' },
+        saturday: { available: true, timeSlot: '9 AM - 2 PM' },
+        sunday: { available: false, timeSlot: 'Not Available' },
+      }
+    },
+    rating: 4.95,
+    totalJobs: 112,
+    currentWorkload: 'low',
+    earnings: {
+      today: 900,
+      week: 5400,
+      month: 21500,
+      total: 94200
+    },
+    welfareBalance: 18200
+  },
+  {
+    uid: 'worker-3',
+    name: 'Mohammed Arshad',
+    email: 'arshad.worker@coopconnect.org',
+    photoURL: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250',
+    role: 'worker',
+    phone: '+91 94481 98765',
+    address: 'Frazer Town, Bengaluru',
+    createdAt: '2023-09-01T12:00:00Z',
+    cooperativeId: 'coop-1',
+    cooperativeName: 'Kalyan Shramik Labour Cooperative Society',
+    profession: 'Plumber & Sanitary Technician',
+    skills: ['Concealed Leak Detection', 'CPVC Pipe Fusion', 'Motor Pump Installation', 'Drain Unclogging', 'Fixture Replacement'],
+    experienceYears: 8,
+    certificates: [
+      { id: 'cert-4', title: 'Master Plumbing Certification', issuer: 'National Skill Development Corp', issuedYear: '2016', verified: true }
+    ],
+    verificationStatus: 'verified',
+    availability: {
+      isAvailable: true,
+      preference: 'custom',
+      weeklySchedule: {
+        monday: { available: true, timeSlot: '5 PM - 9 PM' },
+        tuesday: { available: true, timeSlot: '5 PM - 9 PM' },
+        wednesday: { available: false, timeSlot: 'Not Available' },
+        thursday: { available: true, timeSlot: '5 PM - 9 PM' },
+        friday: { available: true, timeSlot: '5 PM - 9 PM' },
+        saturday: { available: true, timeSlot: '10 AM - 5 PM' },
+        sunday: { available: true, timeSlot: '10 AM - 4 PM' },
+      }
+    },
+    rating: 4.79,
+    totalJobs: 145,
+    currentWorkload: 'moderate',
+    earnings: {
+      today: 1200,
+      week: 6200,
+      month: 24500,
+      total: 112000
+    },
+    welfareBalance: 22600
+  },
+  {
+    uid: 'worker-4',
+    name: 'Laxmi N. Rao',
+    email: 'laxmi.worker@coopconnect.org',
+    photoURL: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?auto=format&fit=crop&q=80&w=250',
+    role: 'worker',
+    phone: '+91 96112 87654',
+    address: 'Jayanagar 5th Block, Bengaluru',
+    createdAt: '2024-01-10T14:20:00Z',
+    cooperativeId: 'coop-2',
+    cooperativeName: 'Sahakari Seva Workers Union',
+    profession: 'Home Housekeeping & Deep Sanitation',
+    skills: ['Kitchen Degreasing', 'Tile Scrubbing', 'Eco-chemical Handling', 'Dusting & Vacuuming'],
+    experienceYears: 3,
+    certificates: [
+      { id: 'cert-5', title: 'Commercial Sanitation Standard', issuer: 'Green Clean Alliance', issuedYear: '2023', verified: false }
+    ],
+    verificationStatus: 'pending',
+    availability: {
+      isAvailable: false,
+      preference: 'morning',
+      weeklySchedule: {
+        monday: { available: false, timeSlot: 'Not Available' },
+        tuesday: { available: true, timeSlot: '9 AM - 2 PM' },
+        wednesday: { available: true, timeSlot: '9 AM - 2 PM' },
+        thursday: { available: true, timeSlot: '9 AM - 2 PM' },
+        friday: { available: false, timeSlot: 'Not Available' },
+        saturday: { available: true, timeSlot: '9 AM - 3 PM' },
+        sunday: { available: false, timeSlot: 'Not Available' },
+      }
+    },
+    rating: 4.65,
+    totalJobs: 34,
+    currentWorkload: 'low',
+    earnings: {
+      today: 0,
+      week: 2200,
+      month: 9800,
+      total: 31000
+    },
+    welfareBalance: 5400
+  }
+];
+
+export const DEMO_USERS: Record<string, UserProfile> = {
+  customer: {
+    uid: 'demo-customer-1',
+    name: 'Priya Sharma',
+    email: 'priya.customer@coopconnect.org',
+    photoURL: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=250',
+    role: 'customer',
+    phone: '+91 98860 55443',
+    address: 'Flat 402, Green Meadows Apt, Indiranagar, Bengaluru',
+    createdAt: '2023-08-01T09:00:00Z',
+  },
+  worker: MOCK_WORKERS[0], // Ramesh Kumar
+  admin: {
+    uid: 'demo-admin-1',
+    name: 'Anand Verma, IAS (Retd.)',
+    email: 'anand.admin@coopconnect.org',
+    photoURL: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=250',
+    role: 'admin',
+    phone: '+91 98450 99887',
+    address: 'Cooperative Directorate, Vidhana Soudha Area, Bengaluru',
+    createdAt: '2023-01-01T09:00:00Z',
+  }
+};
+
+export const MOCK_BOOKINGS: Booking[] = [
+  {
+    id: 'BK-8901',
+    customerId: 'demo-customer-1',
+    customerName: 'Priya Sharma',
+    customerPhone: '+91 98860 55443',
+    customerAddress: 'Flat 402, Green Meadows Apt, Indiranagar, Bengaluru',
+    serviceId: 'electrical',
+    serviceName: 'Electrical Work',
+    workerId: 'worker-1',
+    workerName: 'Ramesh Kumar',
+    workerPhone: '+91 98450 12345',
+    workerPhoto: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?auto=format&fit=crop&q=80&w=250',
+    workerRating: 4.88,
+    cooperativeName: 'Kalyan Shramik Labour Cooperative Society',
+    type: 'emergency',
+    description: 'Main tripping repeatedly when AC and refrigerator run simultaneously. Need urgent safety check on distribution board.',
+    date: 'Today',
+    timeSlot: '6:30 PM (Immediate)',
+    status: 'ACCEPTED',
+    estimatedAmount: 500,
+    createdAt: '2026-09-11T09:30:00Z',
+    otp: '4829',
+    fairMatchReason: 'Matched via Fair Balancing: Ramesh had open evening part-time availability (6-9 PM), holds NTC Electrician credential, and maintains balanced weekly workload.'
+  },
+  {
+    id: 'BK-8842',
+    customerId: 'demo-customer-1',
+    customerName: 'Priya Sharma',
+    customerPhone: '+91 98860 55443',
+    customerAddress: 'Flat 402, Green Meadows Apt, Indiranagar, Bengaluru',
+    serviceId: 'plumbing',
+    serviceName: 'Plumbing Services',
+    workerId: 'worker-3',
+    workerName: 'Mohammed Arshad',
+    workerPhone: '+91 94481 98765',
+    workerPhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250',
+    workerRating: 4.79,
+    cooperativeName: 'Kalyan Shramik Labour Cooperative Society',
+    type: 'scheduled',
+    description: 'Kitchen sink drain line replacement and washer fitting for high-pressure tap.',
+    date: 'Tomorrow, Sept 12',
+    timeSlot: '11:00 AM - 1:00 PM',
+    status: 'ASSIGNED',
+    estimatedAmount: 700,
+    createdAt: '2026-09-10T16:15:00Z',
+    otp: '7391',
+    fairMatchReason: 'Matched via Proximity & Cooperative Skill Passport standard.'
+  },
+  {
+    id: 'BK-8710',
+    customerId: 'demo-customer-1',
+    customerName: 'Priya Sharma',
+    customerPhone: '+91 98860 55443',
+    customerAddress: 'Flat 402, Green Meadows Apt, Indiranagar, Bengaluru',
+    serviceId: 'cleaning',
+    serviceName: 'Deep Cleaning & Sanitization',
+    workerId: 'worker-4',
+    workerName: 'Laxmi N. Rao',
+    workerPhone: '+91 96112 87654',
+    workerPhoto: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?auto=format&fit=crop&q=80&w=250',
+    workerRating: 4.65,
+    cooperativeName: 'Sahakari Seva Workers Union',
+    type: 'scheduled',
+    description: 'Balcony and window glass scrub down before festival.',
+    date: 'Sept 5, 2026',
+    timeSlot: '10:00 AM',
+    status: 'COMPLETED',
+    estimatedAmount: 650,
+    actualAmount: 650,
+    createdAt: '2026-09-04T11:00:00Z',
+    review: {
+      rating: 5,
+      comment: 'Very polite, punctual, and completed the deep cleaning flawlessly! Happy to support cooperative workers directly.',
+      createdAt: '2026-09-05T14:30:00Z'
+    }
+  },
+  {
+    id: 'BK-8630',
+    customerId: 'cust-99',
+    customerName: 'Kavita Menon',
+    customerPhone: '+91 98451 11223',
+    customerAddress: 'Villa 12, Palm Meadows, Whitefield, Bengaluru',
+    serviceId: 'caregiving',
+    serviceName: 'Elderly & Patient Care',
+    workerId: 'worker-2',
+    workerName: 'Sunita Devi',
+    workerPhone: '+91 97312 34567',
+    workerPhoto: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=250',
+    workerRating: 4.95,
+    cooperativeName: 'Sahakari Seva Workers Union',
+    type: 'scheduled',
+    description: 'Post-knee-surgery assisted physical therapy walk and mobility support.',
+    date: 'Sept 9, 2026',
+    timeSlot: '9:00 AM - 12:00 PM',
+    status: 'COMPLETED',
+    estimatedAmount: 900,
+    actualAmount: 900,
+    createdAt: '2026-09-08T18:00:00Z',
+    review: {
+      rating: 5,
+      comment: 'Sunita is exceptional. Gentle, experienced and very attentive to medical guidelines.',
+      createdAt: '2026-09-09T13:00:00Z'
+    }
+  },
+  {
+    id: 'BK-8519',
+    customerId: 'cust-42',
+    customerName: 'Aditya Roy',
+    customerPhone: '+91 99160 88776',
+    customerAddress: 'B-203, Renaissance Park, Malleshwaram, Bengaluru',
+    serviceId: 'plumbing',
+    serviceName: 'Plumbing Services',
+    workerId: 'worker-3',
+    workerName: 'Mohammed Arshad',
+    workerPhone: '+91 94481 98765',
+    workerPhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250',
+    workerRating: 4.79,
+    cooperativeName: 'Kalyan Shramik Labour Cooperative Society',
+    type: 'scheduled',
+    description: 'Bathroom mixer tap replacement and main pipe pressure check.',
+    date: 'Sept 2, 2026',
+    timeSlot: '4:00 PM',
+    status: 'DISPUTED',
+    estimatedAmount: 850,
+    createdAt: '2026-09-01T15:20:00Z',
+    disputeReason: 'Customer claims old mixer valve was damaged during unscrewing; worker asserts valve was already cracked from rust.'
+  }
+];
+
+export const MOCK_DISPUTES: Dispute[] = [
+  {
+    id: 'DSP-104',
+    bookingId: 'BK-8519',
+    customerId: 'cust-42',
+    customerName: 'Aditya Roy',
+    workerId: 'worker-3',
+    workerName: 'Mohammed Arshad',
+    serviceName: 'Plumbing Services',
+    reason: 'Customer claims old mixer valve was damaged during unscrewing; worker asserts valve was already cracked from rust.',
+    date: '2026-09-02',
+    status: 'Open',
+  },
+  {
+    id: 'DSP-102',
+    bookingId: 'BK-7992',
+    customerId: 'cust-19',
+    customerName: 'Vikram Joshi',
+    workerId: 'worker-1',
+    workerName: 'Ramesh Kumar',
+    serviceName: 'Electrical Work',
+    reason: 'Billing discrepancy regarding additional wiring material purchased at local vendor.',
+    date: '2026-08-28',
+    status: 'Resolved',
+    resolutionNote: 'Cooperative verified store receipt of ₹240; customer reimbursed ₹50 goodwill credit via Welfare pool.'
+  }
+];
+
+export const MOCK_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: 'notif-1',
+    title: 'Booking Confirmed!',
+    message: 'Electrician Ramesh Kumar has accepted your emergency request BK-8901 and will arrive by 6:30 PM.',
+    time: '15 mins ago',
+    read: false,
+    type: 'booking',
+    role: 'customer'
+  },
+  {
+    id: 'notif-2',
+    title: 'New Job Request',
+    message: 'Urgent emergency electrical check nearby in Indiranagar (2.4 km). Estimated payout: ₹500.',
+    time: '20 mins ago',
+    read: false,
+    type: 'booking',
+    role: 'worker'
+  },
+  {
+    id: 'notif-3',
+    title: 'Zero Platform Fee Notice',
+    message: 'CoopConnect guarantees 0% commission deductions. 100% of your earnings go straight to you.',
+    time: '1 day ago',
+    read: true,
+    type: 'info',
+    role: 'worker'
+  },
+  {
+    id: 'notif-4',
+    title: 'Cooperative Verification Request',
+    message: 'New worker credential submitted by Laxmi N. Rao awaiting admin review.',
+    time: '3 hours ago',
+    read: false,
+    type: 'alert',
+    role: 'admin'
+  }
+];

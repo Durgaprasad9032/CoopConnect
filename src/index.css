@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-civic-bg: #FAF7F2;
+    --color-civic-card: #FFFFFF;
+    --color-civic-border: #E8DED1;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    background-color: #FAF7F2;
+    color: #1A2332;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Civic Ledger Warmth custom styling helpers */
+.civic-ledger-border {
+  border: 1px solid #E8DED1;
+  background-image: radial-gradient(#E8DED1 0.75px, transparent 0.75px);
+  background-size: 16px 16px;
+}
+
+.civic-stamp {
+  position: relative;
+}
+.civic-stamp::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 1px dashed rgba(208, 90, 63, 0.4);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F4ECE1;
+}
+::-webkit-scrollbar-thumb {
+  background: #D8DFEB;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C5C1BA;
+}
