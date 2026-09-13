@@ -1,0 +1,149 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isWorker() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['worker']);
+    }
+
+    function isAdmin() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['admin']);
+    }
+
+    // Rules for users collection: users/{userId}
+    match /users/{userId} {
+      // 1. Reading profiles:
+      // - Users can read their own profile (request.auth.uid == userId)
+      // - Administrators can read all user profiles
+      // - Authenticated users can view worker profiles (for directory & booking)
+      allow read: if isOwner(userId)
+        || isAdmin()
+        || (isAuthenticated() && resource != null && resource.data.roles.hasAny(['worker']));
+
+      // 2. Creating a profile:
+      // - Authenticated user can ONLY create their own document (request.auth.uid == userId)
+      // - Document uid field must match the authenticated uid
+      // - CRITICAL SECURITY RULE: Self-registration is strictly restricted to roles: ['customer']
+      // - A client CANNOT self-assign 'worker' or 'admin'
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.roles == ['customer'];
+
+      // 3. Updating a profile:
+      // - User can update their personal information (name, phone, address, photoURL, availability, etc.)
+      // - CRITICAL SECURITY RULE: User CANNOT modify their roles array (roles must remain unchanged)
+      // - Administrators can update any profile, including roles
+      allow update: if (isOwner(userId) && request.resource.data.roles == resource.data.roles)
+        || isAdmin();
+
+      // 4. Deleting a profile:
+      // - Only administrators can delete user accounts
+      allow delete: if isAdmin();
+    }
+
+    // Rules for bookings collection
+    match /bookings/{bookingId} {
+
+      // 1. Read:
+      // - Admin can read all bookings
+      // - Customer can read their own bookings
+      // - Assigned worker can read their assigned bookings
+      // - Authenticated workers can read REQUESTED bookings
+      allow read: if isAuthenticated() && (
+        isAdmin()
+        || resource.data.customerId == request.auth.uid
+        || (resource.data.workerId != null && resource.data.workerId == request.auth.uid)
+        || (isWorker() && resource.data.status == 'REQUESTED')
+      );
+
+      // 2. Create:
+      // - Authenticated customer can ONLY create their own booking with status REQUESTED and unassigned workerId
+      allow create: if isAuthenticated() &&
+        request.resource.data.customerId == request.auth.uid &&
+        request.resource.data.status == 'REQUESTED' &&
+        request.resource.data.workerId == null;
+
+      // 3. Update:
+      // - Admins can update any booking
+      // - Worker accepting an open REQUESTED booking:
+      //   - Existing status is REQUESTED and workerId is null
+      //   - Request sets status to ACCEPTED
+      //   - Request sets workerId to current worker UID
+      //   - Preserves customerId, bookingReference, address, description, etc.
+      // - Worker rejecting an open REQUESTED booking:
+      //   - Existing status is REQUESTED
+      //   - Request sets status to REJECTED, workerId remains null, rejectedBy is current worker UID
+      // - Assigned worker advancing job status (ON_THE_WAY, STARTED, COMPLETED)
+      // - Customer updating their own profile details on booking (cannot alter workerId or elevate status)
+      allow update: if isAuthenticated() && (
+        isAdmin()
+        || (
+          isWorker()
+          && resource.data.status == 'REQUESTED'
+          && resource.data.workerId == null
+          && request.resource.data.status == 'ACCEPTED'
+          && request.resource.data.workerId == request.auth.uid
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.bookingReference == resource.data.bookingReference
+          && request.resource.data.address == resource.data.address
+          && request.resource.data.description == resource.data.description
+        )
+        || (
+          isWorker()
+          && resource.data.status == 'REQUESTED'
+          && request.resource.data.status == 'REJECTED'
+          && request.resource.data.workerId == null
+          && request.resource.data.rejectedBy == request.auth.uid
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.bookingReference == resource.data.bookingReference
+        )
+        || (
+          isWorker()
+          && resource.data.workerId == request.auth.uid
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.workerId == resource.data.workerId
+        )
+        || (
+          resource.data.customerId == request.auth.uid
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.workerId == resource.data.workerId
+          && request.resource.data.status == resource.data.status
+        )
+      );
+
+      // 4. Delete: Only administrators can delete bookings
+      allow delete: if isAdmin();
+    }
+
+    // Rules for disputes collection
+    match /disputes/{disputeId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Rules for services catalog
+    match /services/{serviceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Rules for cooperatives directory
+    match /cooperatives/{coopId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

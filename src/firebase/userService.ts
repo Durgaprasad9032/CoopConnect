@@ -1,113 +1,179 @@
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db, isFirebaseConfigured } from './firebase';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+  Timestamp,
+} from 'firebase/firestore';
+import { db } from './firebase';
 import { UserProfile, UserRole } from '../types';
-import { DEMO_USERS } from '../data/mockData';
+import { User as FirebaseUser } from 'firebase/auth';
 
-const LOCAL_STORAGE_USERS_KEY = 'coopconnect_simulated_users';
-
-function getSimulatedUsers(): Record<string, UserProfile> {
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_USERS_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.error('Error loading simulated users', e);
+/**
+ * Format Firestore timestamp, string, or date into ISO string.
+ */
+function formatTimestamp(val: any): string {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string') return val;
+  if (val instanceof Timestamp || typeof val.toDate === 'function') {
+    try {
+      return val.toDate().toISOString();
+    } catch {
+      return new Date().toISOString();
+    }
   }
-  return { ...DEMO_USERS };
-}
-
-function saveSimulatedUsers(users: Record<string, UserProfile>) {
-  try {
-    localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
-  } catch (e) {
-    console.error('Error saving simulated users', e);
+  if (val.seconds) {
+    return new Date(val.seconds * 1000).toISOString();
   }
+  return new Date().toISOString();
 }
 
 /**
- * Fetch user profile from Firestore users/{uid} collection
+ * Fetch user profile from Firestore users/{uid} collection.
+ * Roles are stored strictly in Firestore as an array of strings: roles: ["customer"] | ["worker"] | ["admin"]
  */
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  if (isFirebaseConfigured && db) {
-    try {
-      const docRef = doc(db, 'users', uid);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        return docSnap.data() as UserProfile;
+  if (!db) {
+    throw new Error('Firebase Firestore is not initialized. Please ensure Firebase configuration is provided.');
+  }
+
+  try {
+    const docRef = doc(db, 'users', uid);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+
+      // Normalize roles array: roles: ["customer"] | ["worker"] | ["admin"]
+      let roles: UserRole[] = [];
+      if (Array.isArray(data.roles)) {
+        roles = data.roles as UserRole[];
+      } else if (data.role && typeof data.role === 'string') {
+        roles = [data.role as UserRole];
       }
-      return null;
-    } catch (error) {
-      console.error('Error fetching user document from Firestore:', error);
-      throw error;
-    }
-  }
 
-  // Fallback: simulated user storage
-  const simulated = getSimulatedUsers();
-  return simulated[uid] || null;
+      const profile: UserProfile = {
+        uid: data.uid || uid,
+        name: data.name || 'Coop Member',
+        email: data.email || '',
+        photoURL: data.photoURL || undefined,
+        roles,
+        role: roles[0] || undefined,
+        phone: data.phone,
+        address: data.address,
+        createdAt: formatTimestamp(data.createdAt),
+        updatedAt: data.updatedAt ? formatTimestamp(data.updatedAt) : undefined,
+        cooperativeId: data.cooperativeId,
+        cooperativeName: data.cooperativeName,
+        profession: data.profession,
+        skills: data.skills,
+        experienceYears: data.experienceYears,
+        certificates: data.certificates,
+        verificationStatus: data.verificationStatus,
+        availability: data.availability,
+        rating: data.rating,
+        totalJobs: data.totalJobs,
+        currentWorkload: data.currentWorkload,
+        earnings: data.earnings,
+        welfareBalance: data.welfareBalance,
+      };
+
+      return profile;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching user document from Firestore:', error);
+    throw error;
+  }
 }
 
 /**
- * Create a new user profile in Firestore
+ * Handle new user creation or profile synchronization during Google sign-in.
+ * CRITICAL SECURITY RULE: Users can NEVER self-assign "worker" or "admin" roles.
+ * A new user can only register as "customer".
  */
-export async function createUserProfile(profile: UserProfile): Promise<void> {
-  if (isFirebaseConfigured && db) {
-    try {
-      const docRef = doc(db, 'users', profile.uid);
-      await setDoc(docRef, {
-        ...profile,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    } catch (error) {
-      console.error('Error creating user profile in Firestore:', error);
-      throw error;
-    }
+export async function syncUserProfileOnSignIn(
+  fbUser: FirebaseUser,
+  requestedRole: UserRole
+): Promise<UserProfile> {
+  if (!db) {
+    throw new Error('Firestore is not initialized.');
   }
 
-  // Fallback
-  const simulated = getSimulatedUsers();
-  simulated[profile.uid] = {
-    ...profile,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  saveSimulatedUsers(simulated);
-}
+  const docRef = doc(db, 'users', fbUser.uid);
+  const docSnap = await getDoc(docRef);
 
-/**
- * Update user role or profile information
- */
-export async function updateUserProfile(uid: string, updates: Partial<UserProfile>): Promise<void> {
-  if (isFirebaseConfigured && db) {
-    try {
-      const docRef = doc(db, 'users', uid);
-      await updateDoc(docRef, {
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    } catch (error) {
-      console.error('Error updating user profile in Firestore:', error);
-      throw error;
+  if (docSnap.exists()) {
+    // User already exists in Firestore: return existing profile with their authorized roles
+    const existing = await getUserProfile(fbUser.uid);
+    if (!existing) {
+      throw new Error('Failed to retrieve user profile.');
     }
+    return existing;
   }
 
-  // Fallback
-  const simulated = getSimulatedUsers();
-  if (simulated[uid]) {
-    simulated[uid] = {
-      ...simulated[uid],
-      ...updates,
+  // Document does not exist: New user signing in for the first time
+  if (requestedRole === 'customer') {
+    // New registration as Customer is authorized
+    const newCustomerDoc = {
+      uid: fbUser.uid,
+      name: fbUser.displayName || 'Coop Member',
+      email: fbUser.email || '',
+      photoURL: fbUser.photoURL || null,
+      roles: ['customer'],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    await setDoc(docRef, newCustomerDoc);
+
+    return {
+      uid: fbUser.uid,
+      name: newCustomerDoc.name,
+      email: newCustomerDoc.email,
+      photoURL: fbUser.photoURL || undefined,
+      roles: ['customer'],
+      role: 'customer',
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    saveSimulatedUsers(simulated);
   }
+
+  // If new user requested 'worker' or 'admin':
+  // Users cannot self-assign these roles.
+  if (requestedRole === 'worker') {
+    throw new Error(
+      'Access Denied: You are not registered as a cooperative worker. Worker accounts must be verified and authorized by cooperative administration.'
+    );
+  }
+
+  if (requestedRole === 'admin') {
+    throw new Error(
+      'Access Denied: You do not have administrator permissions. Admin access must be explicitly granted in Cloud Firestore.'
+    );
+  }
+
+  // Fallback default
+  throw new Error('Unauthorized role request.');
 }
 
 /**
- * Set or assign a role to a user
+ * Update user profile information in Firestore.
+ * Strips role fields to ensure client cannot elevate privileges.
  */
-export async function setUserRole(uid: string, role: UserRole): Promise<void> {
-  return updateUserProfile(uid, { role });
+export async function updateUserProfile(uid: string, updates: Partial<UserProfile>): Promise<void> {
+  if (!db) throw new Error('Firestore is not initialized.');
+
+  // Security check: NEVER allow updating roles or uid from client profile updates
+  const safeUpdates = { ...updates };
+  delete (safeUpdates as any).roles;
+  delete (safeUpdates as any).role;
+  delete (safeUpdates as any).uid;
+
+  const docRef = doc(db, 'users', uid);
+  await updateDoc(docRef, {
+    ...safeUpdates,
+    updatedAt: serverTimestamp(),
+  });
 }

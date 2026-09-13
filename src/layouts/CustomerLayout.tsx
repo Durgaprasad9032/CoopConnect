@@ -41,7 +41,6 @@ export const CustomerLayout: React.FC = () => {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/');
   };
 
   return (

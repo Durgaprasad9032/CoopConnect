@@ -13,40 +13,37 @@ import {
   Calendar, 
   MapPin, 
   Power, 
-  Award,
-  ShieldCheck,
-  TrendingUp,
-  Inbox
+  ShieldCheck, 
+  Inbox,
+  Flame
 } from 'lucide-react';
 
 export const WorkerDashboard: React.FC = () => {
   const { user } = useAuth();
-  const { bookings, workers, updateWorkerAvailability, updateBookingStatus } = useBooking();
+  const { 
+    requestedBookings, 
+    workerJobs, 
+    updateWorkerAvailability 
+  } = useBooking();
   const navigate = useNavigate();
 
-  const activeWorker = workers.find((w) => w.uid === user?.uid) || workers[0];
-  const isAvailable = activeWorker?.availability?.isAvailable ?? true;
+  const isAvailable = user?.availability?.isAvailable ?? true;
 
-  // Pending job requests
-  const pendingRequests = bookings.filter((b) => b.status === 'REQUESTED');
+  // Real pending job requests from Firestore
+  const pendingRequests = requestedBookings.filter((b) => b.status === 'REQUESTED');
   
-  // Ongoing jobs
-  const ongoingJobs = bookings.filter((b) => 
-    ['ACCEPTED', 'ON_THE_WAY', 'STARTED'].includes(b.status) && (b.workerId === activeWorker.uid || !b.workerId)
+  // Real ongoing jobs assigned to this worker in Firestore
+  const ongoingJobs = workerJobs.filter((b) => 
+    ['ACCEPTED', 'ON_THE_WAY', 'STARTED'].includes(b.status) && b.workerId === user?.uid
   );
 
-  // Completed jobs
-  const completedJobs = bookings.filter((b) => b.status === 'COMPLETED' && b.workerId === activeWorker.uid);
-
-  const earnings = activeWorker.earnings || {
-    today: 850,
-    week: 4200,
-    month: 16800,
-    total: 68400
-  };
+  // Real completed jobs for this worker
+  const completedJobs = workerJobs.filter((b) => b.status === 'COMPLETED' && b.workerId === user?.uid);
 
   const handleToggleAvailability = async () => {
-    await updateWorkerAvailability(activeWorker.uid, !isAvailable);
+    if (user?.uid) {
+      await updateWorkerAvailability(user.uid, !isAvailable);
+    }
   };
 
   return (
@@ -58,13 +55,13 @@ export const WorkerDashboard: React.FC = () => {
           <div className="max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-amber-100 text-xs font-semibold mb-3 border border-white/20">
               <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-              <span>{activeWorker.cooperativeName || 'Kalyan Shramik Labour Cooperative'}</span>
+              <span>{user?.cooperativeName || 'Labour Cooperative Guild'}</span>
             </div>
             <h1 className="text-3xl sm:text-4xl font-serif font-bold text-white mb-2">
-              Namaste, {activeWorker.name}!
+              Namaste, {user?.name || 'Worker'}!
             </h1>
             <p className="text-xs sm:text-sm text-amber-100 leading-relaxed font-normal">
-              &ldquo;Work when you are available. CoopConnect supports flexible part-time work.&rdquo;
+              &ldquo;Work when you are available. CoopConnect supports flexible cooperative part-time work.&rdquo;
             </p>
           </div>
 
@@ -85,7 +82,7 @@ export const WorkerDashboard: React.FC = () => {
               <span>{isAvailable ? 'Available for Jobs' : 'Marked Off-Duty'}</span>
             </button>
             <span className="text-[10px] text-amber-100">
-              Preference: <strong className="capitalize">{activeWorker.availability?.preference || 'Evening Shifts'}</strong>
+              Status: <strong className="capitalize">{isAvailable ? 'Active Standby' : 'Off-Duty'}</strong>
             </span>
           </div>
         </div>
@@ -98,38 +95,52 @@ export const WorkerDashboard: React.FC = () => {
           <span>ZERO REGISTRATION & ZERO PLATFORM COMMISSIONS</span>
         </div>
         <div className="flex items-center gap-4 text-emerald-800">
-          <span>• 100% Free for Cooperative Workers</span>
+          <span>• 100% Direct Payout for Cooperative Workers</span>
           <span>• No Monthly Subscriptions</span>
         </div>
       </div>
 
-      {/* KPI Stats Cards */}
+      {/* Real Stats Cards (No dummy fake earnings or ratings) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {/* Today Earnings */}
+        {/* Pending Requests */}
         <div className="bg-white rounded-2xl p-5 border border-[#EDDEC9] shadow-civic">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Today's Earnings</span>
-            <Wallet className="w-4 h-4 text-[#C97716]" />
+            <span className="text-xs font-semibold text-slate-500">Open Job Requests</span>
+            <Inbox className="w-4 h-4 text-[#C97716]" />
           </div>
           <h3 className="text-2xl font-serif font-bold text-slate-900">
-            ₹{earnings.today}
+            {pendingRequests.length}
           </h3>
-          <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
-            <TrendingUp className="w-3 h-3" /> +₹350 vs yesterday
+          <span className="text-[11px] text-amber-700 font-medium mt-1 block">
+            Awaiting worker acceptance
           </span>
         </div>
 
-        {/* Total Earnings */}
+        {/* Assigned Active Jobs */}
         <div className="bg-white rounded-2xl p-5 border border-[#EDDEC9] shadow-civic">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Total Earnings</span>
-            <Wallet className="w-4 h-4 text-emerald-600" />
+            <span className="text-xs font-semibold text-slate-500">Active Assignments</span>
+            <Briefcase className="w-4 h-4 text-emerald-600" />
           </div>
           <h3 className="text-2xl font-serif font-bold text-slate-900">
-            ₹{earnings.total}
+            {ongoingJobs.length}
           </h3>
           <span className="text-[11px] text-slate-500 mt-1 block">
-            Across {activeWorker.totalJobs || 78} jobs
+            Accepted in progress
+          </span>
+        </div>
+
+        {/* Completed Jobs */}
+        <div className="bg-white rounded-2xl p-5 border border-[#EDDEC9] shadow-civic">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-slate-500">Completed Jobs</span>
+            <CheckCircle2 className="w-4 h-4 text-blue-600" />
+          </div>
+          <h3 className="text-2xl font-serif font-bold text-slate-900">
+            {completedJobs.length}
+          </h3>
+          <span className="text-[11px] text-slate-500 mt-1 block">
+            Total verified jobs
           </span>
         </div>
 
@@ -140,36 +151,22 @@ export const WorkerDashboard: React.FC = () => {
             <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
           </div>
           <h3 className="text-2xl font-serif font-bold text-slate-900">
-            {activeWorker.rating || 4.88}
-          </h3>
-          <span className="text-[11px] text-amber-700 font-semibold mt-1 block">
-            Top 5% Cooperative Artisan
-          </span>
-        </div>
-
-        {/* Part-Time Hours */}
-        <div className="bg-white rounded-2xl p-5 border border-[#EDDEC9] shadow-civic">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Part-Time Hours</span>
-            <Clock className="w-4 h-4 text-blue-600" />
-          </div>
-          <h3 className="text-2xl font-serif font-bold text-slate-900">
-            18 hrs
+            {user?.rating ? user.rating : 'No data yet'}
           </h3>
           <span className="text-[11px] text-slate-500 mt-1 block">
-            Scheduled this week
+            {user?.rating ? 'Top Cooperative Artisan' : 'New verified member'}
           </span>
         </div>
       </div>
 
-      {/* Pending Job Requests Alert (if any) */}
-      {pendingRequests.length > 0 && (
+      {/* Pending Job Requests Alert (if any real ones exist) */}
+      {pendingRequests.length > 0 ? (
         <div className="bg-white rounded-3xl p-6 border-2 border-amber-300 shadow-civic">
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
               <h3 className="font-serif font-bold text-lg text-slate-900">
-                Pending Service Request
+                Pending Service Requests
               </h3>
             </div>
             <Link
@@ -187,117 +184,119 @@ export const WorkerDashboard: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-[#C97716] uppercase tracking-wider">
-                      {req.serviceName}
+                      {req.serviceType}
                     </span>
-                    <span className="text-xs font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
-                      Est. ₹{req.estimatedAmount}
+                    <span className="text-xs font-mono font-bold text-amber-800 bg-white px-2 py-0.5 rounded border border-amber-200">
+                      {req.bookingReference}
                     </span>
                   </div>
 
                   <h4 className="font-bold text-sm text-slate-900 mb-1">{req.customerName}</h4>
-                  <p className="text-xs text-slate-600 flex items-center gap-1 mb-2">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{req.customerAddress}</span>
+                  <p className="text-xs text-slate-600 flex items-start gap-1 mb-2">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                    <span>{req.address}</span>
                   </p>
-                  <p className="text-xs text-slate-500 italic bg-white p-2 rounded-lg border border-slate-100">
+                  <p className="text-xs text-slate-500 italic line-clamp-2">
                     &ldquo;{req.description}&rdquo;
                   </p>
                 </div>
 
-                <div className="pt-4 mt-3 border-t border-slate-200/60 flex items-center gap-2">
-                  <button
-                    onClick={async () => {
-                      await updateBookingStatus(req.id, 'ACCEPTED');
-                    }}
-                    className="flex-1 py-2 rounded-xl bg-[#C97716] hover:bg-[#A85F0C] text-white text-xs font-bold transition-colors shadow-xs"
+                <div className="pt-3 border-t border-[#EDDEC9] flex items-center justify-between mt-3">
+                  <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                    {req.bookingType === 'Emergency' ? (
+                      <span className="text-orange-600 font-bold flex items-center gap-1">
+                        <Flame className="w-3 h-3" /> Emergency
+                      </span>
+                    ) : (
+                      <span>{req.scheduledDate || 'Scheduled'}</span>
+                    )}
+                  </span>
+                  <Link
+                    to="/worker/requests"
+                    className="px-3.5 py-1.5 rounded-lg bg-[#C97716] hover:bg-[#A85F0C] text-white font-bold text-xs transition-colors"
                   >
-                    Accept Request (₹{req.estimatedAmount})
-                  </button>
-                  <button
-                    onClick={async () => {
-                      await updateBookingStatus(req.id, 'CANCELLED');
-                    }}
-                    className="px-3 py-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 text-xs font-semibold"
-                  >
-                    Decline
-                  </button>
+                    View & Accept
+                  </Link>
                 </div>
               </div>
             ))}
           </div>
         </div>
-      )}
-
-      {/* Ongoing / Active Jobs */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EDDEC9] shadow-civic">
-        <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-100">
-          <div>
-            <h3 className="text-xl font-serif font-bold text-slate-900">
-              Active / Scheduled Jobs
-            </h3>
-            <p className="text-xs text-slate-500">Service visits assigned to your current schedule</p>
+      ) : (
+        <div className="bg-white rounded-3xl p-6 border border-[#EDDEC9] shadow-civic flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-[#C97716] flex items-center justify-center shrink-0">
+              <Inbox className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-slate-900">No pending job requests</h3>
+              <p className="text-xs text-slate-500">You are currently on standby for household requests in your district.</p>
+            </div>
           </div>
           <Link
             to="/worker/jobs"
-            className="text-xs font-bold text-[#C97716] hover:underline"
+            className="px-5 py-2.5 rounded-xl bg-[#C97716] hover:bg-[#A85F0C] text-white font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto shrink-0"
           >
-            Manage All Jobs
+            <span>Check My Jobs</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
+
+      {/* Ongoing Active Jobs Section */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EDDEC9] shadow-civic">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="font-serif font-bold text-lg text-slate-900">
+              Assigned Active Jobs
+            </h3>
+            <p className="text-xs text-slate-500">Jobs you have accepted and are currently executing</p>
+          </div>
+          <Link
+            to="/worker/jobs"
+            className="text-xs font-bold text-[#C97716] hover:underline flex items-center gap-1"
+          >
+            <span>Manage All Jobs ({ongoingJobs.length})</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
         {ongoingJobs.length > 0 ? (
-          <div className="space-y-4">
+          <div className="divide-y divide-slate-100">
             {ongoingJobs.map((job) => (
-              <div key={job.id} className="p-4 sm:p-5 rounded-2xl bg-[#FAF8F4] border border-[#EDDEC9] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-slate-900">{job.serviceName}</span>
-                    <span className="text-xs font-mono text-slate-400">#{job.id}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
-                      {job.status.replace(/_/g, ' ')}
-                    </span>
+              <div key={job.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-[#C97716] flex items-center justify-center font-bold text-xs shrink-0">
+                    {job.serviceType.slice(0, 2).toUpperCase()}
                   </div>
-                  <p className="text-xs text-slate-600">
-                    Customer: <strong>{job.customerName}</strong> • {job.customerPhone}
-                  </p>
-                  <p className="text-xs text-slate-500 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    {job.customerAddress}
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-bold text-sm text-slate-900">{job.serviceType}</h4>
+                      <span className="text-[11px] font-mono font-bold text-[#C97716] bg-amber-50 px-2 py-0.5 rounded">
+                        {job.bookingReference}
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                        {job.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Customer: <strong>{job.customerName}</strong> • {job.address}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {job.status === 'ACCEPTED' && (
-                    <button
-                      onClick={() => updateBookingStatus(job.id, 'ON_THE_WAY')}
-                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs"
-                    >
-                      Start Transit (On The Way)
-                    </button>
-                  )}
-                  {job.status === 'ON_THE_WAY' && (
-                    <button
-                      onClick={() => updateBookingStatus(job.id, 'STARTED')}
-                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs"
-                    >
-                      Enter OTP & Start Work
-                    </button>
-                  )}
-                  {job.status === 'STARTED' && (
-                    <button
-                      onClick={() => updateBookingStatus(job.id, 'COMPLETED')}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs"
-                    >
-                      Mark Completed (₹{job.estimatedAmount})
-                    </button>
-                  )}
-                </div>
+                <Link
+                  to="/worker/jobs"
+                  className="px-4 py-2 rounded-xl bg-[#C97716] hover:bg-[#A85F0C] text-white text-xs font-bold transition-colors shadow-sm self-start sm:self-auto shrink-0"
+                >
+                  Manage Status
+                </Link>
               </div>
             ))}
           </div>
         ) : (
           <p className="text-xs text-slate-500 text-center py-6">
-            No active jobs in progress. Check incoming job requests or adjust your part-time availability.
+            You currently have no active jobs in progress. Check incoming job requests above to accept new tasks!
           </p>
         )}
       </div>

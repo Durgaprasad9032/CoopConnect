@@ -1,89 +1,91 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from '../firebase/firebase';
 import { signInWithGoogle as fbSignInWithGoogle, signOut as fbSignOut } from '../firebase/auth';
-import { getUserProfile, updateUserProfile, createUserProfile } from '../firebase/userService';
+import { getUserProfile, updateUserProfile } from '../firebase/userService';
 import { UserProfile, UserRole } from '../types';
-import { DEMO_USERS } from '../data/mockData';
 
 interface AuthContextType {
   user: UserProfile | null;
   firebaseUser: FirebaseUser | null;
   loading: boolean;
   isFirebaseConfigured: boolean;
-  loginWithGoogle: (intendedRole?: UserRole) => Promise<UserProfile>;
+  activeRole: UserRole | null;
+  setActiveRole: (role: UserRole) => void;
+  loginWithGoogle: (requestedRole: UserRole) => Promise<UserProfile>;
   logout: () => Promise<void>;
-  switchDemoRole: (role: UserRole) => Promise<void>;
-  completeProfile: (role: UserRole, details: Partial<UserProfile>) => Promise<void>;
   updateUser: (updates: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_SESSION_KEY = 'coopconnect_active_session_uid';
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Initialize session
-  useEffect(() => {
-    let unsubscribe = () => {};
+  // Lock to avoid racing onAuthStateChanged during active signInWithGoogle flow
+  const isSigningInRef = useRef<boolean>(false);
 
-    if (isFirebaseConfigured && auth) {
-      unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-        setFirebaseUser(fbUser);
-        if (fbUser) {
-          try {
-            const profile = await getUserProfile(fbUser.uid);
-            setUser(profile);
-          } catch (e) {
-            console.error('Error fetching profile for auth state change:', e);
-            setUser(null);
-          }
-        } else {
-          setUser(null);
+  // Monitor real Firebase Authentication state
+  useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      setFirebaseUser(fbUser);
+
+      if (fbUser) {
+        // If loginWithGoogle is actively processing, let loginWithGoogle complete the sync
+        if (isSigningInRef.current) {
+          return;
         }
-        setLoading(false);
-      });
-    } else {
-      // In offline / preview mode: check if a demo user was previously chosen or default to customer
-      const storedUid = localStorage.getItem(LOCAL_STORAGE_SESSION_KEY);
-      if (storedUid) {
-        getUserProfile(storedUid).then((profile) => {
+
+        try {
+          const profile = await getUserProfile(fbUser.uid);
           if (profile) {
             setUser(profile);
+            // Default activeRole to first role if not set or not in roles
+            setActiveRole((prev) => {
+              if (prev && profile.roles.includes(prev)) return prev;
+              return profile.roles[0] || null;
+            });
           } else {
-            // Default demo customer
-            setUser(DEMO_USERS.customer);
+            setUser(null);
+            setActiveRole(null);
           }
-          setLoading(false);
-        });
+        } catch (error) {
+          console.error('Error loading Firestore profile onAuthStateChanged:', error);
+          setUser(null);
+          setActiveRole(null);
+        }
       } else {
-        // Default to demo customer for immediate out-of-the-box readiness
-        setUser(DEMO_USERS.customer);
-        setLoading(false);
+        setUser(null);
+        setActiveRole(null);
       }
-    }
+
+      setLoading(false);
+    });
 
     return () => unsubscribe();
   }, []);
 
-  const loginWithGoogle = async (intendedRole?: UserRole): Promise<UserProfile> => {
+  const loginWithGoogle = async (requestedRole: UserRole): Promise<UserProfile> => {
+    isSigningInRef.current = true;
     setLoading(true);
     try {
-      const result = await fbSignInWithGoogle(intendedRole);
-      if (result.firebaseUser) {
-        setFirebaseUser(result.firebaseUser);
-      }
-      if (result.profile) {
-        setUser(result.profile);
-        localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, result.profile.uid);
-        return result.profile;
-      }
-      throw new Error('Authentication did not return a valid user profile.');
+      const result = await fbSignInWithGoogle(requestedRole);
+      setFirebaseUser(result.firebaseUser);
+      setUser(result.profile);
+      setActiveRole(requestedRole);
+      return result.profile;
     } finally {
+      isSigningInRef.current = false;
       setLoading(false);
     }
   };
@@ -91,39 +93,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async () => {
     setLoading(true);
     try {
+      // 1. Navigate to landing/home page first with replace so route changes to '/'
+      // and replaces protected dashboard in history
+      navigate('/', { replace: true });
+      // 2. Sign out of Firebase Auth
       await fbSignOut();
+      // 3. Clear session and role state
       setUser(null);
       setFirebaseUser(null);
-      localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
+      setActiveRole(null);
+    } catch (error) {
+      console.error('Error during logout:', error);
+      navigate('/', { replace: true });
+      setUser(null);
+      setFirebaseUser(null);
+      setActiveRole(null);
     } finally {
       setLoading(false);
     }
-  };
-
-  const switchDemoRole = async (role: UserRole) => {
-    setLoading(true);
-    try {
-      const demoUser = DEMO_USERS[role];
-      if (demoUser) {
-        // Ensure it's saved in storage
-        await createUserProfile(demoUser);
-        setUser(demoUser);
-        localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, demoUser.uid);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const completeProfile = async (role: UserRole, details: Partial<UserProfile>) => {
-    if (!user) throw new Error('No authenticated user session to complete.');
-    const updated: Partial<UserProfile> = {
-      ...details,
-      role,
-      updatedAt: new Date().toISOString(),
-    };
-    await updateUserProfile(user.uid, updated);
-    setUser((prev) => (prev ? { ...prev, ...updated } : null));
   };
 
   const updateUser = async (updates: Partial<UserProfile>) => {
@@ -139,10 +126,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         firebaseUser,
         loading,
         isFirebaseConfigured,
+        activeRole,
+        setActiveRole,
         loginWithGoogle,
         logout,
-        switchDemoRole,
-        completeProfile,
         updateUser,
       }}
     >

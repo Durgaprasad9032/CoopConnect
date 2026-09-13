@@ -1,73 +1,62 @@
 import { signInWithPopup, signOut as fbSignOut, User as FirebaseUser } from 'firebase/auth';
-import { auth, googleProvider, isFirebaseConfigured } from './firebase';
-import { getUserProfile, createUserProfile } from './userService';
+import { auth, googleProvider } from './firebase';
+import { syncUserProfileOnSignIn, getUserProfile } from './userService';
 import { UserProfile, UserRole } from '../types';
-import { DEMO_USERS } from '../data/mockData';
 
 export interface AuthResult {
-  firebaseUser: FirebaseUser | null;
-  profile: UserProfile | null;
-  isNewUser: boolean;
+  firebaseUser: FirebaseUser;
+  profile: UserProfile;
 }
 
 /**
  * Sign in with Google using Firebase Authentication.
- * If Firestore profile does not exist yet, initializes one or marks user as needing profile completion.
+ * Validates against Firestore collection users/{uid} to check that the requested role
+ * exists inside the user's `roles` array.
  */
-export async function signInWithGoogle(intendedRole?: UserRole): Promise<AuthResult> {
-  if (isFirebaseConfigured && auth && googleProvider) {
-    try {
-      const cred = await signInWithPopup(auth, googleProvider);
-      const fbUser = cred.user;
-      
-      let profile = await getUserProfile(fbUser.uid);
-      let isNew = false;
-
-      if (!profile) {
-        isNew = true;
-        // If intendedRole is provided (e.g. from /login/worker or /login/customer), set it, otherwise 'customer' default (never default to admin!)
-        const assignedRole: UserRole = intendedRole === 'admin' ? 'customer' : (intendedRole || 'customer');
-        profile = {
-          uid: fbUser.uid,
-          name: fbUser.displayName || 'CoopConnect Member',
-          email: fbUser.email || '',
-          photoURL: fbUser.photoURL || undefined,
-          role: assignedRole,
-          createdAt: new Date().toISOString(),
-        };
-        await createUserProfile(profile);
-      }
-
-      return {
-        firebaseUser: fbUser,
-        profile,
-        isNewUser: isNew,
-      };
-    } catch (error: any) {
-      if (error.code === 'auth/popup-closed-by-user') {
-        throw new Error('Google sign-in was cancelled.');
-      }
-      throw new Error(error.message || 'Unable to sign in with Google. Please try again.');
-    }
+export async function signInWithGoogle(requestedRole: UserRole): Promise<AuthResult> {
+  if (!auth || !googleProvider) {
+    throw new Error(
+      'Firebase Authentication is not initialized. Please ensure your Firebase credentials are configured in .env.'
+    );
   }
 
-  // Fallback: Simulated Google Sign-in for immediate evaluation & hackathon review
-  // Defaults to intended role or customer
-  const role: UserRole = intendedRole || 'customer';
-  const demoProfile = DEMO_USERS[role];
+  try {
+    const cred = await signInWithPopup(auth, googleProvider);
+    const fbUser = cred.user;
 
-  return {
-    firebaseUser: null,
-    profile: demoProfile,
-    isNewUser: false,
-  };
+    // Sync or fetch profile from Firestore
+    const profile = await syncUserProfileOnSignIn(fbUser, requestedRole);
+
+    // Verify role authorization
+    if (!profile.roles || !profile.roles.includes(requestedRole)) {
+      throw new Error(
+        `Access Denied: Your account (${fbUser.email}) does not have permission for the ${requestedRole.toUpperCase()} role.`
+      );
+    }
+
+    return {
+      firebaseUser: fbUser,
+      profile: {
+        ...profile,
+        role: requestedRole, // Set active requested role for session
+      },
+    };
+  } catch (error: any) {
+    if (error.code === 'auth/popup-closed-by-user') {
+      throw new Error('Google sign-in was cancelled.');
+    }
+    if (error.code === 'auth/cancelled-popup-request') {
+      throw new Error('Authentication request was cancelled.');
+    }
+    throw new Error(error.message || 'Unable to sign in with Google. Please try again.');
+  }
 }
 
 /**
- * Sign out of Firebase
+ * Sign out of Firebase Authentication
  */
 export async function signOut(): Promise<void> {
-  if (isFirebaseConfigured && auth) {
+  if (auth) {
     await fbSignOut(auth);
   }
 }

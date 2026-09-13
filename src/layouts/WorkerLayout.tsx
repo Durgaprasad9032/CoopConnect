@@ -56,7 +56,6 @@ export const WorkerLayout: React.FC = () => {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/');
   };
 
   return (

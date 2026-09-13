@@ -7,16 +7,16 @@ import { RoleSwitcherModal } from './components/common/RoleSwitcherModal';
 import { ArrowLeftRight, Shield, CheckCircle2, Sparkles, Scale } from 'lucide-react';
 
 const FloatingRoleQuickBar: React.FC = () => {
-  const { user, isFirebaseConfigured, switchDemoRole } = useAuth();
+  const { user, activeRole } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
 
   return (
     <>
       <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-[#1A2332]/95 backdrop-blur-md text-white px-3.5 py-2 rounded-2xl border border-slate-700 shadow-2xl transition-all hover:scale-105">
         <div className="flex items-center gap-2 pr-2 border-r border-slate-700">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span className={`w-2 h-2 rounded-full ${user ? 'bg-emerald-400' : 'bg-slate-400'} animate-pulse`}></span>
           <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
-            {user?.role || 'Guest'}
+            {activeRole || (user?.roles && user.roles[0]) || 'Guest'}
           </span>
         </div>
 

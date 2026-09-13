@@ -1,484 +1,498 @@
-import React, { useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBooking } from '../../contexts/BookingContext';
-import { MOCK_SERVICES } from '../../data/mockData';
-import { 
-  Flame, 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  CheckCircle2, 
-  ArrowRight, 
-  ArrowLeft, 
-  ShieldCheck, 
-  Scale, 
-  Star, 
+import { FirestoreBooking } from '../../types';
+import {
+  Wrench,
+  Zap,
   Sparkles,
-  Info
+  HeartHandshake,
+  Car,
+  HelpCircle,
+  Flame,
+  Calendar,
+  Clock,
+  MapPin,
+  Phone,
+  CheckCircle2,
+  ArrowRight,
+  ShieldCheck,
+  AlertCircle,
+  RotateCcw,
+  LayoutDashboard,
 } from 'lucide-react';
+
+interface ServiceOption {
+  id: string;
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+}
+
+const SERVICE_OPTIONS: ServiceOption[] = [
+  { id: 'Plumbing', name: 'Plumbing', icon: Wrench, description: 'Pipes, leakage, drain clearing & tap repairs' },
+  { id: 'Electrical', name: 'Electrical', icon: Zap, description: 'Wiring, fixtures, fuse box & switches' },
+  { id: 'House Cleaning', name: 'House Cleaning', icon: Sparkles, description: 'Deep cleaning, dusting & kitchen sanitation' },
+  { id: 'Caregiving', name: 'Caregiving', icon: HeartHandshake, description: 'Elderly assistance, patient care & home companionship' },
+  { id: 'Driver', name: 'Driver', icon: Car, description: 'Personal car transit, city navigation & daily errands' },
+  { id: 'Other', name: 'Other', icon: HelpCircle, description: 'Custom handyman or cooperative trade requests' },
+];
 
 export const BookingWizardPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { createBooking, workers } = useBooking();
+  const { createCustomerBooking } = useBooking();
 
-  const initialServiceId = searchParams.get('service') || 'electrical';
-  const initialType = (searchParams.get('type') as 'emergency' | 'scheduled') || 'scheduled';
+  // URL query pre-fills
+  const initialTypeParam = searchParams.get('type');
+  const initialServiceParam = searchParams.get('service');
 
-  // Step state
-  const [step, setStep] = useState<number>(1);
-  const [serviceId, setServiceId] = useState<string>(initialServiceId);
-  const [bookingType, setBookingType] = useState<'emergency' | 'scheduled'>(initialType);
+  // Find preselected service from query param if available
+  const matchService = SERVICE_OPTIONS.find(
+    (s) =>
+      s.id.toLowerCase() === initialServiceParam?.toLowerCase() ||
+      s.name.toLowerCase() === initialServiceParam?.toLowerCase()
+  );
+
+  // Form states
+  const [serviceType, setServiceType] = useState<string>(matchService ? matchService.name : 'Plumbing');
   const [description, setDescription] = useState<string>('');
-  const [date, setDate] = useState<string>('Today, Immediate');
-  const [timeSlot, setTimeSlot] = useState<string>('6:30 PM');
-  const [address, setAddress] = useState<string>(user?.address || 'Flat 402, Green Meadows Apt, Indiranagar, Bengaluru');
-  const [phone, setPhone] = useState<string>(user?.phone || '+91 98860 55443');
-  const [selectedWorkerId, setSelectedWorkerId] = useState<string>('worker-1');
+  const [address, setAddress] = useState<string>(user?.address || '');
+  const [bookingType, setBookingType] = useState<'Emergency' | 'Scheduled'>(
+    initialTypeParam?.toLowerCase() === 'emergency' ? 'Emergency' : 'Scheduled'
+  );
+  const [scheduledDate, setScheduledDate] = useState<string>(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return today;
+  });
+  const [scheduledTime, setScheduledTime] = useState<string>('09:00 AM - 12:00 PM');
+  const [phoneNumber, setPhoneNumber] = useState<string>(user?.phone || '');
+
+  // Submission states
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [createdBooking, setCreatedBooking] = useState<FirestoreBooking | null>(null);
 
-  const currentService = MOCK_SERVICES.find((s) => s.id === serviceId) || MOCK_SERVICES[0];
-  
-  // Pick matching verified workers for this trade
-  const availableWorkers = workers.filter((w) => w.verificationStatus === 'verified');
-  const assignedWorker = availableWorkers.find((w) => w.uid === selectedWorkerId) || availableWorkers[0];
+  // Update address & phone if user profile loads after mount
+  useEffect(() => {
+    if (user?.address && !address) {
+      setAddress(user.address);
+    }
+    if (user?.phone && !phoneNumber) {
+      setPhoneNumber(user.phone);
+    }
+  }, [user]);
 
-  const estimatedTotal = bookingType === 'emergency' ? currentService.baseRate + 150 : currentService.baseRate;
+  const handleConfirmBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
 
-  const handleConfirmBooking = async () => {
+    // Form Validations
+    if (!serviceType) {
+      setErrorMessage('Please select a service type.');
+      return;
+    }
+    if (!description.trim()) {
+      setErrorMessage('Please describe the service you need.');
+      return;
+    }
+    if (!address.trim()) {
+      setErrorMessage('Please enter your service address.');
+      return;
+    }
+    if (bookingType === 'Scheduled' && (!scheduledDate || !scheduledTime)) {
+      setErrorMessage('Please select a preferred date and time for scheduled booking.');
+      return;
+    }
+
+    if (!user?.uid) {
+      setErrorMessage('You must be signed in to create a booking.');
+      return;
+    }
+
     setSubmitting(true);
+
     try {
-      const newBooking = await createBooking({
-        customerId: user?.uid || 'demo-customer-1',
-        customerName: user?.name || 'Priya Sharma',
-        customerPhone: phone,
-        customerAddress: address,
-        serviceId: currentService.id,
-        serviceName: currentService.name,
-        workerId: assignedWorker.uid,
-        workerName: assignedWorker.name,
-        workerPhone: assignedWorker.phone,
-        workerPhoto: assignedWorker.photoURL,
-        workerRating: assignedWorker.rating,
-        cooperativeName: assignedWorker.cooperativeName,
-        type: bookingType,
-        description: description || `Standard diagnostic and repair for ${currentService.name}`,
-        date: bookingType === 'emergency' ? 'Today' : date,
-        timeSlot: bookingType === 'emergency' ? 'Emergency Dispatch (<45 mins)' : timeSlot,
-        estimatedAmount: estimatedTotal,
-        fairMatchReason: `Assigned via Fair Algorithmic Balancing: ${assignedWorker.name} has registered part-time availability for this slot and holds verified cooperative credentials.`,
+      const newBooking = await createCustomerBooking({
+        customerId: user.uid,
+        customerName: user.name || 'Cooperative Member',
+        customerEmail: user.email || '',
+        customerPhotoURL: user.photoURL || null,
+        serviceType,
+        description: description.trim(),
+        address: address.trim(),
+        phoneNumber: phoneNumber.trim() || undefined,
+        bookingType,
+        scheduledDate: bookingType === 'Scheduled' ? scheduledDate : null,
+        scheduledTime: bookingType === 'Scheduled' ? scheduledTime : null,
       });
 
-      // Redirect directly to live track
-      navigate(`/customer/track?bookingId=${newBooking.id}&created=true`);
-    } catch (e) {
-      console.error(e);
+      setCreatedBooking(newBooking);
+    } catch (err: any) {
+      console.error('Failed to create booking in Firestore:', err);
+      setErrorMessage(
+        err?.message || 'Failed to create your booking request. Please check your connection and try again.'
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
-  return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      
-      {/* Wizard Header */}
-      <div className="bg-white rounded-3xl p-6 border border-[#E8DED1] shadow-civic">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-[#0D6E66]">
-              Cooperative Booking Protocol
-            </span>
-            <h1 className="text-2xl font-serif font-bold text-slate-900 mt-0.5">
-              Book a Service
-            </h1>
+  // SUCCESS CONFIRMATION SCREEN
+  if (createdBooking) {
+    return (
+      <div className="max-w-2xl mx-auto py-4 animate-fadeIn">
+        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-[#E8DED1] shadow-civic text-center space-y-6">
+          {/* Success Icon */}
+          <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto shadow-sm">
+            <CheckCircle2 className="w-9 h-9" />
           </div>
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-teal-50 text-[#0D6E66] border border-teal-200">
-            Step {step} of 4
-          </span>
-        </div>
 
-        {/* Stepper Dots */}
-        <div className="flex items-center gap-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className={`h-2 flex-1 rounded-full transition-all duration-300 ${
-                i === step
-                  ? 'bg-[#0D6E66]'
-                  : i < step
-                  ? 'bg-teal-300'
-                  : 'bg-slate-200'
-              }`}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Step 1: Service & Urgency */}
-      {step === 1 && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DED1] shadow-civic space-y-6 animate-fadeIn">
           <div>
-            <h3 className="text-lg font-serif font-bold text-slate-900 mb-1">
-              1. Select Service & Priority
-            </h3>
-            <p className="text-xs text-slate-500">
-              Choose your required household trade and whether you need emergency assistance.
+            <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-2">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Confirmed In Firestore</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900">
+              Booking Request Created
+            </h1>
+            <p className="text-sm text-slate-600 mt-2 max-w-lg mx-auto leading-relaxed">
+              Your service request has been submitted. We will match you with a suitable cooperative worker.
             </p>
           </div>
 
-          {/* Urgency Switcher */}
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => setBookingType('scheduled')}
-              className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                bookingType === 'scheduled'
-                  ? 'border-[#0D6E66] bg-teal-50/50'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center gap-2 font-bold text-sm text-slate-900 mb-1">
-                <Calendar className="w-4 h-4 text-[#0D6E66]" />
-                <span>Scheduled Service</span>
-              </div>
-              <p className="text-xs text-slate-500 leading-snug">
-                Book for a convenient date & part-time worker time slot.
-              </p>
-            </button>
+          {/* Booking Summary Card */}
+          <div className="bg-[#FAF7F2] rounded-2xl p-5 border border-[#E8DED1] text-left space-y-3 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8DED1]">
+              <span className="text-slate-500 font-semibold uppercase tracking-wider">
+                Booking Reference
+              </span>
+              <span className="font-mono font-extrabold text-sm text-[#0D6E66] bg-white px-2.5 py-1 rounded-lg border border-teal-200">
+                {createdBooking.bookingReference}
+              </span>
+            </div>
 
-            <button
-              onClick={() => setBookingType('emergency')}
-              className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                bookingType === 'emergency'
-                  ? 'border-[#D05A3F] bg-orange-50/50'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center gap-2 font-bold text-sm text-[#D05A3F] mb-1">
-                <Flame className="w-4 h-4 text-[#D05A3F]" />
-                <span>Emergency Request</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <span className="text-slate-500 block text-[11px]">Service</span>
+                <strong className="text-slate-900 text-sm">{createdBooking.serviceType}</strong>
               </div>
-              <p className="text-xs text-slate-500 leading-snug">
-                Immediate dispatch within 45 minutes for urgent repairs.
-              </p>
-            </button>
-          </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Booking Type</span>
+                <span className={`inline-flex items-center gap-1 font-bold text-xs ${
+                  createdBooking.bookingType === 'Emergency' ? 'text-orange-700' : 'text-slate-900'
+                }`}>
+                  {createdBooking.bookingType === 'Emergency' && <Flame className="w-3.5 h-3.5 text-orange-500" />}
+                  {createdBooking.bookingType}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Status</span>
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-extrabold text-[11px] border border-amber-300">
+                  {createdBooking.status}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Date / Timing</span>
+                <span className="text-slate-800 font-medium">
+                  {createdBooking.bookingType === 'Emergency'
+                    ? 'Immediate Dispatch (<45 mins)'
+                    : `${createdBooking.scheduledDate} (${createdBooking.scheduledTime})`}
+                </span>
+              </div>
+            </div>
 
-          {/* Service Selector Cards */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              Select Category
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {MOCK_SERVICES.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setServiceId(s.id)}
-                  className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all ${
-                    serviceId === s.id
-                      ? 'border-[#0D6E66] bg-teal-50 ring-1 ring-[#0D6E66]'
-                      : 'border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <div>
-                    <h4 className="font-bold text-xs text-slate-900">{s.name}</h4>
-                    <span className="text-[11px] text-slate-500">from ₹{s.baseRate}/{s.rateUnit}</span>
-                  </div>
-                  {serviceId === s.id && (
-                    <CheckCircle2 className="w-4 h-4 text-[#0D6E66]" />
-                  )}
-                </button>
-              ))}
+            <div className="pt-2 border-t border-[#E8DED1]">
+              <span className="text-slate-500 block text-[11px]">Service Address</span>
+              <p className="text-slate-800 font-medium mt-0.5 flex items-start gap-1">
+                <MapPin className="w-3.5 h-3.5 text-[#0D6E66] shrink-0 mt-0.5" />
+                <span>{createdBooking.address}</span>
+              </p>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 flex justify-end">
-            <button
-              onClick={() => setStep(2)}
-              className="px-6 py-2.5 rounded-xl bg-[#0D6E66] hover:bg-[#0A554F] text-white font-bold text-xs flex items-center gap-2 transition-colors shadow-sm"
+          {/* Action Buttons */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              to="/customer/bookings"
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#0D6E66] hover:bg-[#0A554F] text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
             >
-              <span>Next: Task Details</span>
+              <span>View My Bookings</span>
               <ArrowRight className="w-4 h-4" />
-            </button>
+            </Link>
+            <Link
+              to="/customer/dashboard"
+              className="w-full sm:w-auto px-6 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+            >
+              <LayoutDashboard className="w-4 h-4 text-slate-500" />
+              <span>Back to Dashboard</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // BOOKING FORM
+  return (
+    <div className="max-w-3xl mx-auto space-y-6 animate-fadeIn">
+      {/* Header */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DED1] shadow-civic">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-[#0D6E66] text-xs font-semibold mb-2 border border-teal-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+              <span>Direct Cooperative Service Booking</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900">
+              Book a Service
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              Connect with vetted local cooperative artisans for fair, trusted household service.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Error Alert */}
+      {errorMessage && (
+        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2.5 animate-fadeIn">
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+          <div>
+            <strong className="block font-bold">Unable to proceed</strong>
+            <span>{errorMessage}</span>
           </div>
         </div>
       )}
 
-      {/* Step 2: Description & Schedule */}
-      {step === 2 && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DED1] shadow-civic space-y-6 animate-fadeIn">
-          <div>
-            <h3 className="text-lg font-serif font-bold text-slate-900 mb-1">
-              2. Problem Description & Time
-            </h3>
-            <p className="text-xs text-slate-500">
-              Provide details to ensure the cooperative artisan brings appropriate tools.
-            </p>
+      {/* Form Container */}
+      <form onSubmit={handleConfirmBooking} className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DED1] shadow-civic space-y-8">
+        
+        {/* A. SERVICE TYPE */}
+        <div className="space-y-3">
+          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+            A. Select Service Type <span className="text-red-500">*</span>
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {SERVICE_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const isSelected = serviceType === option.name;
+              return (
+                <button
+                  type="button"
+                  key={option.id}
+                  onClick={() => setServiceType(option.name)}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${
+                    isSelected
+                      ? 'border-[#0D6E66] bg-teal-50/70 shadow-sm ring-2 ring-[#0D6E66]/20'
+                      : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between w-full mb-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                      isSelected ? 'bg-[#0D6E66] text-white' : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    {isSelected && (
+                      <CheckCircle2 className="w-4 h-4 text-[#0D6E66]" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900">{option.name}</h3>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                      {option.description}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Description textarea */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Describe the Issue / Task
-            </label>
-            <textarea
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Bathroom drain line is clogged; or distribution fuse box trips when high-power appliances run."
-              className="w-full p-3.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-[#0D6E66] focus:border-transparent outline-none resize-none"
+        {/* B. SERVICE DESCRIPTION */}
+        <div className="space-y-2">
+          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+            B. Service Description <span className="text-red-500">*</span>
+          </label>
+          <textarea
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Describe the service you need (e.g., Kitchen sink pipe leakage, ceiling fan installation, etc.)"
+            className="w-full p-3.5 rounded-2xl border border-slate-300 text-xs focus:ring-2 focus:ring-[#0D6E66] focus:border-transparent outline-none transition-all placeholder:text-slate-400"
+            required
+          />
+        </div>
+
+        {/* C. SERVICE ADDRESS */}
+        <div className="space-y-2">
+          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+            C. Service Address <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Enter service address (House/Flat, Street, Area, Landmark)"
+              className="w-full pl-10 pr-3.5 py-3 rounded-2xl border border-slate-300 text-xs focus:ring-2 focus:ring-[#0D6E66] focus:border-transparent outline-none transition-all placeholder:text-slate-400"
+              required
             />
           </div>
+        </div>
 
-          {/* Date & Time if scheduled */}
-          {bookingType === 'scheduled' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* D. BOOKING TYPE */}
+        <div className="space-y-3">
+          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+            D. Booking Type <span className="text-red-500">*</span>
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Scheduled option */}
+            <button
+              type="button"
+              onClick={() => setBookingType('Scheduled')}
+              className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                bookingType === 'Scheduled'
+                  ? 'border-[#0D6E66] bg-teal-50/60 shadow-sm ring-2 ring-[#0D6E66]/20'
+                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
+                  <Calendar className="w-4 h-4 text-[#0D6E66]" />
+                  <span>Scheduled</span>
+                </div>
+                {bookingType === 'Scheduled' && (
+                  <CheckCircle2 className="w-4 h-4 text-[#0D6E66]" />
+                )}
+              </div>
+              <p className="text-xs text-slate-500 leading-snug">
+                Pick a convenient future date and time window for worker visit.
+              </p>
+            </button>
+
+            {/* Emergency option */}
+            <button
+              type="button"
+              onClick={() => setBookingType('Emergency')}
+              className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                bookingType === 'Emergency'
+                  ? 'border-[#D05A3F] bg-orange-50/70 shadow-sm ring-2 ring-[#D05A3F]/20'
+                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 font-bold text-sm text-[#D05A3F]">
+                  <Flame className="w-4 h-4 text-[#D05A3F]" />
+                  <span>Emergency</span>
+                </div>
+                {bookingType === 'Emergency' && (
+                  <CheckCircle2 className="w-4 h-4 text-[#D05A3F]" />
+                )}
+              </div>
+              <p className="text-xs text-slate-500 leading-snug">
+                Urgent request! Fastest available cooperative technician dispatch within 45 minutes.
+              </p>
+            </button>
+          </div>
+
+          {/* Conditional Date / Time inputs */}
+          {bookingType === 'Scheduled' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 mt-3 animate-fadeIn">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Service Date
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-[#0D6E66]" />
+                  <span>Preferred Date</span>
                 </label>
-                <select
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-[#0D6E66]"
-                >
-                  <option value="Today">Today (Evening Slot)</option>
-                  <option value="Tomorrow, Sept 12">Tomorrow, Sept 12</option>
-                  <option value="Saturday, Sept 13">Saturday, Sept 13 (Weekend)</option>
-                  <option value="Sunday, Sept 14">Sunday, Sept 14 (Weekend)</option>
-                </select>
+                <input
+                  type="date"
+                  value={scheduledDate}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-[#0D6E66] bg-white"
+                  required
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Preferred Part-Time Window
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-[#0D6E66]" />
+                  <span>Preferred Time</span>
                 </label>
                 <select
-                  value={timeSlot}
-                  onChange={(e) => setTimeSlot(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-[#0D6E66]"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-[#0D6E66] bg-white"
                 >
-                  <option value="9:00 AM - 12:00 PM">Morning (9:00 AM - 12:00 PM)</option>
-                  <option value="2:00 PM - 5:00 PM">Afternoon (2:00 PM - 5:00 PM)</option>
-                  <option value="6:00 PM - 9:00 PM">Evening Part-Time (6:00 PM - 9:00 PM)</option>
+                  <option value="09:00 AM - 12:00 PM">Morning (09:00 AM - 12:00 PM)</option>
+                  <option value="12:00 PM - 03:00 PM">Afternoon (12:00 PM - 03:00 PM)</option>
+                  <option value="03:00 PM - 06:00 PM">Late Afternoon (03:00 PM - 06:00 PM)</option>
+                  <option value="06:00 PM - 09:00 PM">Evening (06:00 PM - 09:00 PM)</option>
                 </select>
               </div>
             </div>
           ) : (
-            <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-xs text-orange-900 flex items-center gap-3">
-              <Flame className="w-5 h-5 text-orange-600 shrink-0" />
+            <div className="p-4 rounded-2xl bg-orange-50 border border-orange-200 text-xs text-orange-900 flex items-start gap-3 mt-3 animate-fadeIn">
+              <Flame className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
               <div>
-                <strong className="block">Emergency Priority Activated</strong>
-                <span>A nearby verified cooperative worker on active duty will be dispatched immediately. Expected arrival within 45 minutes.</span>
+                <strong className="block font-bold text-orange-950">Urgent Priority Service</strong>
+                <p className="mt-0.5 text-[11px] text-orange-900 leading-relaxed">
+                  No future date or time scheduling required. Our algorithmic balancing will immediately alert nearby on-duty certified trade members to respond.
+                </p>
               </div>
             </div>
           )}
-
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-            <button
-              onClick={() => setStep(1)}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 hover:bg-slate-50"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </button>
-            <button
-              onClick={() => setStep(3)}
-              className="px-6 py-2.5 rounded-xl bg-[#0D6E66] hover:bg-[#0A554F] text-white font-bold text-xs flex items-center gap-2 transition-colors shadow-sm"
-            >
-              <span>Next: Location Details</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
         </div>
-      )}
 
-      {/* Step 3: Location Details */}
-      {step === 3 && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DED1] shadow-civic space-y-6 animate-fadeIn">
-          <div>
-            <h3 className="text-lg font-serif font-bold text-slate-900 mb-1">
-              3. Service Location & Contact
-            </h3>
-            <p className="text-xs text-slate-500">
-              Ensure accurate address information for smooth technician transit.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Service Address
+        {/* E. OPTIONAL CUSTOMER PHONE NUMBER */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+              E. Customer Phone Number
             </label>
-            <textarea
-              rows={2}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="w-full p-3.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-[#0D6E66] focus:border-transparent outline-none resize-none"
+            <span className="text-[11px] text-slate-400 font-medium">Optional</span>
+          </div>
+          <div className="relative">
+            <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+            <input
+              type="tel"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="Enter contact number (e.g. +91 98860 12345)"
+              className="w-full pl-10 pr-3.5 py-3 rounded-2xl border border-slate-300 text-xs focus:ring-2 focus:ring-[#0D6E66] focus:border-transparent outline-none transition-all placeholder:text-slate-400"
             />
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Contact Phone
-              </label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-300 text-xs outline-none focus:ring-2 focus:ring-[#0D6E66]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                City / Ward
-              </label>
-              <input
-                type="text"
-                disabled
-                value="Indiranagar Ward 112, Bengaluru"
-                className="w-full p-3 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-600"
-              />
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-            <button
-              onClick={() => setStep(2)}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 hover:bg-slate-50"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </button>
-            <button
-              onClick={() => setStep(4)}
-              className="px-6 py-2.5 rounded-xl bg-[#0D6E66] hover:bg-[#0A554F] text-white font-bold text-xs flex items-center gap-2 transition-colors shadow-sm"
-            >
-              <span>Next: Review Fair Match</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
         </div>
-      )}
 
-      {/* Step 4: Fair Matching Review & Confirmation */}
-      {step === 4 && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DED1] shadow-civic space-y-6 animate-fadeIn">
-          <div>
-            <h3 className="text-lg font-serif font-bold text-slate-900 mb-1">
-              4. Fair Matched Worker & Confirmation
-            </h3>
-            <p className="text-xs text-slate-500">
-              Review assigned cooperative worker matched by democratic algorithm.
-            </p>
-          </div>
+        {/* F. CONFIRM BOOKING BUTTON */}
+        <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-[11px] text-slate-500">
+            By confirming, a verified cooperative service document will be recorded in Cloud Firestore.
+          </p>
 
-          {/* Fair Match Banner */}
-          <div className="p-4 rounded-2xl bg-teal-50/70 border border-teal-200 text-xs text-teal-900 space-y-2">
-            <div className="flex items-center gap-2 font-bold text-[#0D6E66]">
-              <Scale className="w-4 h-4" />
-              <span>Fair Job Distribution Match</span>
-            </div>
-            <p className="text-[11px] text-slate-600 leading-relaxed">
-              We dispatched <strong>{assignedWorker.name}</strong> based on verified trade skills, active part-time shift availability, and equitable weekly workload balance across cooperative members.
-            </p>
-          </div>
-
-          {/* Assigned Worker Card */}
-          <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#E8DED1] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <img
-                src={assignedWorker.photoURL || 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?auto=format&fit=crop&q=80&w=120'}
-                alt={assignedWorker.name}
-                className="w-12 h-12 rounded-2xl object-cover border border-amber-300 shadow-sm"
-              />
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-sm text-slate-900">{assignedWorker.name}</h4>
-                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Verified
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600">{assignedWorker.profession}</p>
-                <p className="text-[11px] text-slate-500">{assignedWorker.cooperativeName}</p>
-              </div>
-            </div>
-
-            <div className="text-left sm:text-right">
-              <div className="inline-flex items-center gap-1 text-xs font-bold text-slate-800 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                <span>{assignedWorker.rating}</span>
-                <span className="text-slate-400">({assignedWorker.totalJobs} jobs)</span>
-              </div>
-              <span className="block text-[11px] text-emerald-700 font-semibold mt-1">
-                Zero Commission Platform
-              </span>
-            </div>
-          </div>
-
-          {/* Price & Summary Table */}
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2 text-xs">
-            <div className="flex justify-between text-slate-600">
-              <span>Service Type</span>
-              <strong className="text-slate-900">{currentService.name}</strong>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span>Booking Mode</span>
-              <strong className="text-slate-900 capitalize">{bookingType}</strong>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span>Address</span>
-              <span className="text-slate-900 max-w-xs text-right truncate">{address}</span>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span>Worker Direct Compensation</span>
-              <span className="font-semibold text-slate-900">₹{currentService.baseRate}</span>
-            </div>
-            {bookingType === 'emergency' && (
-              <div className="flex justify-between text-orange-700">
-                <span>Emergency Quick-Dispatch Supplement</span>
-                <span>+ ₹150</span>
-              </div>
-            )}
-            <div className="flex justify-between text-emerald-700 font-semibold">
-              <span>Platform Usage / Extraction Fee</span>
-              <span>₹0 (0% Cooperative Promise)</span>
-            </div>
-            <div className="pt-2 border-t border-slate-200 flex justify-between text-sm font-bold text-slate-900">
-              <span>Estimated Total</span>
-              <span className="text-base text-[#0D6E66]">₹{estimatedTotal}</span>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-            <button
-              onClick={() => setStep(3)}
-              disabled={submitting}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 hover:bg-slate-50"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </button>
-            <button
-              onClick={handleConfirmBooking}
-              disabled={submitting}
-              className="px-8 py-3 rounded-xl bg-[#0D6E66] hover:bg-[#0A554F] text-white font-bold text-xs flex items-center gap-2 transition-colors shadow-sm disabled:opacity-60"
-            >
-              {submitting ? (
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-[#0D6E66] hover:bg-[#0A554F] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-civic disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {submitting ? (
+              <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Confirm & Dispatch Worker</span>
-                </>
-              )}
-            </button>
-          </div>
+                <span>Creating booking...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Confirm Booking</span>
+              </>
+            )}
+          </button>
         </div>
-      )}
-
+      </form>
     </div>
   );
 };

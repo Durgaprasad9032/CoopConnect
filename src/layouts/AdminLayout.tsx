@@ -46,7 +46,6 @@ export const AdminLayout: React.FC = () => {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/');
   };
 
   return (
@@ -114,8 +113,8 @@ export const AdminLayout: React.FC = () => {
               className="w-10 h-10 rounded-full object-cover border border-amber-500/40"
             />
             <div className="overflow-hidden">
-              <h4 className="font-bold text-xs text-white truncate">{user?.name || 'Anand Verma, IAS'}</h4>
-              <p className="text-[10px] text-amber-400 font-semibold truncate">Registrar of Cooperatives</p>
+              <h4 className="font-bold text-xs text-white truncate">{user?.name || 'Administrator'}</h4>
+              <p className="text-[10px] text-amber-400 font-semibold truncate">Cooperative Governance Desk</p>
             </div>
           </div>
 

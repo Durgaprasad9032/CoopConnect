@@ -17,14 +17,16 @@ import {
 import { getDashboardRouteForRole } from '../../firebase/roleService';
 
 export const Navbar: React.FC = () => {
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const currentRole = activeRole || (user?.roles && user.roles[0]);
+
   const getRoleIcon = () => {
-    switch (user?.role) {
+    switch (currentRole) {
       case 'customer':
         return <Users className="w-3.5 h-3.5 text-[#0D6E66]" />;
       case 'worker':
@@ -37,7 +39,7 @@ export const Navbar: React.FC = () => {
   };
 
   const getRoleThemeBadge = () => {
-    switch (user?.role) {
+    switch (currentRole) {
       case 'customer':
         return 'bg-teal-50 text-[#0D6E66] border-teal-200';
       case 'worker':
@@ -49,7 +51,7 @@ export const Navbar: React.FC = () => {
     }
   };
 
-  const dashboardRoute = user ? getDashboardRouteForRole(user.role) : '/login';
+  const dashboardRoute = currentRole ? getDashboardRouteForRole(currentRole) : '/login';
 
   return (
     <>
@@ -102,17 +104,17 @@ export const Navbar: React.FC = () => {
                 title="Switch between Customer, Worker, and Admin roles"
               >
                 {getRoleIcon()}
-                <span className="capitalize">{user ? user.role : 'Select Role'}</span>
+                <span className="capitalize">{currentRole ? currentRole : 'Select Role'}</span>
                 <ArrowLeftRight className="w-3 h-3 text-slate-400 ml-0.5" />
               </button>
 
               {/* Dashboard / Login CTA */}
-              {user ? (
+              {user && currentRole ? (
                 <button
                   onClick={() => navigate(dashboardRoute)}
                   className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1A2332] hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-all hover:-translate-y-0.5"
                 >
-                  <span>{user.role.toUpperCase()} Dashboard</span>
+                  <span>{currentRole.toUpperCase()} Dashboard</span>
                 </button>
               ) : (
                 <button
@@ -176,7 +178,7 @@ export const Navbar: React.FC = () => {
                 <ArrowLeftRight className="w-4 h-4" />
                 Switch Role (Customer / Worker / Admin)
               </button>
-              {user && (
+              {user && currentRole && (
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
@@ -184,7 +186,7 @@ export const Navbar: React.FC = () => {
                   }}
                   className="w-full py-2.5 px-4 rounded-xl bg-[#1A2332] text-white text-xs font-semibold"
                 >
-                  Open {user.role.toUpperCase()} Dashboard
+                  Open {currentRole.toUpperCase()} Dashboard
                 </button>
               )}
             </div>

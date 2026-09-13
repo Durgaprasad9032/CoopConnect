@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { UserRole } from '../../types';
-import { Users, HardHat, ShieldCheck, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { getDashboardRouteForRole, getRoleDisplayName } from '../../firebase/roleService';
+import { Users, HardHat, ShieldCheck, ArrowLeft, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
+import { getDashboardRouteForRole } from '../../firebase/roleService';
 
 export const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { loginWithGoogle, switchDemoRole, isFirebaseConfigured } = useAuth();
+  const { loginWithGoogle } = useAuth();
 
-  // Role can come from URL query param e.g. /login?role=worker
+  // Role requested in the UI (e.g. /login?role=worker)
   const queryRole = (searchParams.get('role') as UserRole) || 'customer';
   const [selectedRole, setSelectedRole] = useState<UserRole>(queryRole);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export const LoginPage: React.FC = () => {
       case 'customer':
         return {
           title: 'Customer Login',
-          subtitle: 'Sign in to book verified household and community services',
+          subtitle: 'Sign in to request and book verified cooperative household services',
           icon: <Users className="w-6 h-6 text-[#0D6E66]" />,
           accentColor: '#0D6E66',
           bgAccent: 'bg-teal-50',
@@ -30,7 +30,7 @@ export const LoginPage: React.FC = () => {
       case 'worker':
         return {
           title: 'Cooperative Worker Login',
-          subtitle: 'Sign in to access your part-time schedule, jobs, and earnings',
+          subtitle: 'Sign in to access your part-time shifts, job requests, and earnings',
           icon: <HardHat className="w-6 h-6 text-[#C97716]" />,
           accentColor: '#C97716',
           bgAccent: 'bg-amber-50',
@@ -54,39 +54,24 @@ export const LoginPage: React.FC = () => {
     setError(null);
     setLoading(true);
     try {
+      // 1. Authenticate with Google via Firebase modular SDK
+      // 2. Lookup/Sync Firestore users/{uid} collection
+      // 3. Verify requested role exists in user's roles array: roles.includes(selectedRole)
       const profile = await loginWithGoogle(selectedRole);
 
-      // Verify that user matches requested role or redirect to user's assigned role
-      if (selectedRole === 'admin' && profile.role !== 'admin') {
-        setError('Unauthorized: Your Google account is not registered with administrative privileges.');
+      if (!profile.roles || !profile.roles.includes(selectedRole)) {
+        setError(
+          `Access Denied: Your Google account (${profile.email}) is not authorized for the ${selectedRole.toUpperCase()} role.`
+        );
         return;
       }
 
-      // Check if user has an assigned role
-      if (!profile.role) {
-        setError('Please complete your profile before continuing.');
-        return;
-      }
-
-      // Successful role verification: redirect to dashboard
-      const targetRoute = getDashboardRouteForRole(profile.role);
+      // 4. Redirect to the authorized dashboard
+      const targetRoute = getDashboardRouteForRole(selectedRole);
       navigate(targetRoute, { replace: true });
     } catch (err: any) {
       console.error('Sign-in error:', err);
-      setError(err.message || 'Unable to sign in. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDemoSignIn = async (role: UserRole) => {
-    setError(null);
-    setLoading(true);
-    try {
-      await switchDemoRole(role);
-      navigate(getDashboardRouteForRole(role), { replace: true });
-    } catch (err: any) {
-      setError(err.message || 'Error loading demo profile.');
+      setError(err.message || 'Unable to sign in with Google. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -187,41 +172,18 @@ export const LoginPage: React.FC = () => {
                   d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
                 />
               </svg>
-              <span>Continue with Google</span>
+              <span>Continue with Google as {selectedRole.toUpperCase()}</span>
             </>
           )}
         </button>
 
-        {/* Divider */}
-        <div className="relative my-6 text-center">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[#E8DED1]"></div>
-          </div>
-          <span className="relative px-3 bg-white text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Instant Demo Account
+        {/* Security / Firestore notice */}
+        <div className="mt-6 pt-4 border-t border-slate-100 flex items-start gap-2 text-[11px] text-slate-500 leading-relaxed">
+          <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+          <span>
+            Selecting a role requests access to that dashboard. Permission is verified strictly against your registered <strong className="text-slate-700">roles</strong> array in Cloud Firestore.
           </span>
         </div>
-
-        {/* Direct Demo Sign-in Button */}
-        <button
-          onClick={() => handleDemoSignIn(selectedRole)}
-          disabled={loading}
-          className={`w-full py-3 px-4 rounded-xl text-white font-semibold text-xs transition-all shadow-sm flex items-center justify-center gap-2 ${
-            selectedRole === 'customer'
-              ? 'bg-[#0D6E66] hover:bg-[#0A554F]'
-              : selectedRole === 'worker'
-              ? 'bg-[#C97716] hover:bg-[#A85F0C]'
-              : 'bg-[#1A283C] hover:bg-slate-800'
-          }`}
-        >
-          <span>Sign In as Demo {selectedRole.toUpperCase()}</span>
-        </button>
-
-        {/* Security / Firestore notice */}
-        <p className="text-[11px] text-slate-400 text-center mt-6 leading-relaxed">
-          Authentication is verified via Firebase and role permissions stored securely in Firestore. 
-          Admin access requires registered authority clearance.
-        </p>
 
       </div>
     </div>

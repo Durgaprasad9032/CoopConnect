@@ -34,7 +34,8 @@ export interface UserProfile {
   name: string;
   email: string;
   photoURL?: string;
-  role: UserRole;
+  roles: UserRole[];
+  role?: UserRole;
   phone?: string;
   address?: string;
   createdAt: string;
@@ -82,30 +83,66 @@ export type BookingStatus =
   | 'STARTED'
   | 'COMPLETED'
   | 'CANCELLED'
-  | 'DISPUTED';
+  | 'DISPUTED'
+  | 'REJECTED';
+
+export interface FirestoreBooking {
+  id: string;
+  bookingReference: string;
+  customerId: string;
+  customerName: string;
+  customerEmail?: string;
+  customerPhotoURL?: string | null;
+  serviceType: string;
+  description: string;
+  address: string;
+  phoneNumber?: string;
+  bookingType: 'Emergency' | 'Scheduled' | 'emergency' | 'scheduled';
+  scheduledDate?: string | null;
+  scheduledTime?: string | null;
+  status: BookingStatus;
+  workerId: string | null;
+  workerName?: string | null;
+  acceptedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+  otp?: string;
+}
 
 export interface Booking {
   id: string;
+  bookingReference?: string;
   customerId: string;
   customerName: string;
+  customerEmail?: string;
+  customerPhotoURL?: string | null;
   customerPhone: string;
   customerAddress: string;
   serviceId: string;
   serviceName: string;
-  workerId?: string;
-  workerName?: string;
+  serviceType?: string;
+  workerId?: string | null;
+  workerName?: string | null;
   workerPhone?: string;
   workerPhoto?: string;
   workerRating?: number;
   cooperativeName?: string;
-  type: 'emergency' | 'scheduled';
+  type: 'emergency' | 'scheduled' | 'Emergency' | 'Scheduled';
+  bookingType?: 'Emergency' | 'Scheduled' | 'emergency' | 'scheduled';
   description: string;
+  address?: string;
+  phoneNumber?: string;
   date: string;
   timeSlot: string;
+  scheduledDate?: string | null;
+  scheduledTime?: string | null;
   status: BookingStatus;
   estimatedAmount: number;
   actualAmount?: number;
   createdAt: string;
+  updatedAt?: string;
   otp?: string;
   fairMatchReason?: string;
   disputeReason?: string;

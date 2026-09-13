@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { UserRole } from '../../types';
-import { Users, HardHat, ShieldCheck, X, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Users, HardHat, ShieldCheck, X, CheckCircle2, ArrowRight, Lock } from 'lucide-react';
 import { getDashboardRouteForRole } from '../../firebase/roleService';
 
 interface RoleSwitcherModalProps {
@@ -11,28 +11,27 @@ interface RoleSwitcherModalProps {
 }
 
 export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, onClose }) => {
-  const { user, switchDemoRole, logout } = useAuth();
+  const { user, activeRole, setActiveRole, logout } = useAuth();
   const navigate = useNavigate();
 
   if (!isOpen) return null;
 
-  const handleSelectRole = async (targetRole: UserRole) => {
-    // If currently logged in as that role already, navigate directly
-    if (user?.role === targetRole) {
+  const handleSelectRole = (targetRole: UserRole) => {
+    // If user is logged in and their Firestore profile includes the target role:
+    if (user && user.roles && user.roles.includes(targetRole)) {
+      setActiveRole(targetRole);
       navigate(getDashboardRouteForRole(targetRole));
       onClose();
       return;
     }
 
-    // Otherwise switch active persona / login
-    await switchDemoRole(targetRole);
-    navigate(getDashboardRouteForRole(targetRole));
+    // Otherwise, direct user to authenticate with Google for that role
+    navigate(`/login?role=${targetRole}`);
     onClose();
   };
 
-  const handleAuthRedirect = (targetRole: UserRole) => {
-    navigate(`/login?role=${targetRole}`);
-    onClose();
+  const isRoleAuthorized = (role: UserRole) => {
+    return Boolean(user && user.roles && user.roles.includes(role));
   };
 
   return (
@@ -55,10 +54,10 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
             Civic Role Gateway
           </div>
           <h3 className="text-2xl sm:text-3xl font-serif font-bold text-[#1A2332]">
-            Select Your Role in CoopConnect
+            Select Platform Workspace
           </h3>
           <p className="text-sm text-slate-600 mt-1 max-w-md mx-auto">
-            Experience the platform through three dedicated, purpose-built dashboards in one unified application.
+            Switch between authorized role dashboards in one unified application.
           </p>
         </div>
 
@@ -68,7 +67,7 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
           <div
             onClick={() => handleSelectRole('customer')}
             className={`cursor-pointer rounded-2xl p-5 border-2 transition-all duration-200 flex flex-col justify-between hover:shadow-md ${
-              user?.role === 'customer'
+              activeRole === 'customer'
                 ? 'border-[#0D6E66] bg-teal-50/50 ring-2 ring-[#0D6E66]/20'
                 : 'border-[#E8DED1] bg-white hover:border-[#0D6E66]/60'
             }`}
@@ -79,7 +78,7 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
               </div>
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-slate-900 text-lg">Customer</h4>
-                {user?.role === 'customer' && (
+                {activeRole === 'customer' && (
                   <CheckCircle2 className="w-5 h-5 text-[#0D6E66]" />
                 )}
               </div>
@@ -88,7 +87,7 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-[#0D6E66]">
-              <span>Continue as Customer</span>
+              <span>{isRoleAuthorized('customer') ? 'Switch to Customer' : 'Sign in as Customer'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </div>
           </div>
@@ -97,7 +96,7 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
           <div
             onClick={() => handleSelectRole('worker')}
             className={`cursor-pointer rounded-2xl p-5 border-2 transition-all duration-200 flex flex-col justify-between hover:shadow-md ${
-              user?.role === 'worker'
+              activeRole === 'worker'
                 ? 'border-[#C97716] bg-amber-50/50 ring-2 ring-[#C97716]/20'
                 : 'border-[#E8DED1] bg-white hover:border-[#C97716]/60'
             }`}
@@ -108,7 +107,7 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
               </div>
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-slate-900 text-lg">Worker</h4>
-                {user?.role === 'worker' && (
+                {activeRole === 'worker' && (
                   <CheckCircle2 className="w-5 h-5 text-[#C97716]" />
                 )}
               </div>
@@ -120,7 +119,7 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-[#C97716]">
-              <span>Continue as Worker</span>
+              <span>{isRoleAuthorized('worker') ? 'Switch to Worker' : 'Sign in as Worker'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </div>
           </div>
@@ -129,7 +128,7 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
           <div
             onClick={() => handleSelectRole('admin')}
             className={`cursor-pointer rounded-2xl p-5 border-2 transition-all duration-200 flex flex-col justify-between hover:shadow-md ${
-              user?.role === 'admin'
+              activeRole === 'admin'
                 ? 'border-[#1A283C] bg-slate-100 ring-2 ring-[#1A283C]/20'
                 : 'border-[#E8DED1] bg-white hover:border-[#1A283C]/60'
             }`}
@@ -140,7 +139,7 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
               </div>
               <div className="flex items-center justify-between">
                 <h4 className="font-bold text-slate-900 text-lg">Admin</h4>
-                {user?.role === 'admin' && (
+                {activeRole === 'admin' && (
                   <CheckCircle2 className="w-5 h-5 text-[#1A283C]" />
                 )}
               </div>
@@ -149,7 +148,7 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-[#1A283C]">
-              <span>Continue as Admin</span>
+              <span>{isRoleAuthorized('admin') ? 'Switch to Admin' : 'Sign in as Admin'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </div>
           </div>
@@ -159,26 +158,34 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({ isOpen, on
         <div className="bg-white/80 rounded-xl p-4 border border-[#E8DED1] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Active session: <strong className="text-slate-800">{user?.name || 'Guest'}</strong> ({user?.role?.toUpperCase() || 'NONE'})</span>
+            <span>
+              Account: <strong className="text-slate-800">{user?.name || 'Not signed in'}</strong>
+              {user?.roles && (
+                <span className="text-slate-500 ml-1">
+                  (Roles: [{user.roles.join(', ')}])
+                </span>
+              )}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleAuthRedirect('customer')}
-              className="text-[#0D6E66] hover:underline font-medium"
-            >
-              Sign In with Google
-            </button>
-            <span>•</span>
-            <button
-              onClick={async () => {
-                await logout();
-                onClose();
-                navigate('/');
-              }}
-              className="text-red-600 hover:underline font-medium"
-            >
-              Sign Out
-            </button>
+          <div className="flex items-center gap-3">
+            {!user ? (
+              <button
+                onClick={() => handleSelectRole('customer')}
+                className="text-[#0D6E66] hover:underline font-bold"
+              >
+                Sign In with Google
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  onClose();
+                  await logout();
+                }}
+                className="text-red-600 hover:underline font-medium"
+              >
+                Sign Out
+              </button>
+            )}
           </div>
         </div>
       </div>

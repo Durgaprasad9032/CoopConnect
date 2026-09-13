@@ -1,22 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, HardHat, ShieldCheck, ArrowRight, Scale, CheckCircle2 } from 'lucide-react';
+import { Users, HardHat, ShieldCheck, ArrowRight, Scale, Lock } from 'lucide-react';
 import { UserRole } from '../../types';
-import { useAuth } from '../../contexts/AuthContext';
 
 export const RoleSelectPage: React.FC = () => {
   const navigate = useNavigate();
-  const { switchDemoRole } = useAuth();
 
-  const handleSelectRole = async (role: UserRole) => {
+  const handleSelectRole = (role: UserRole) => {
     navigate(`/login?role=${role}`);
-  };
-
-  const handleDirectDemo = async (role: UserRole) => {
-    await switchDemoRole(role);
-    if (role === 'customer') navigate('/customer/dashboard');
-    else if (role === 'worker') navigate('/worker/dashboard');
-    else if (role === 'admin') navigate('/admin/dashboard');
   };
 
   return (
@@ -35,12 +26,12 @@ export const RoleSelectPage: React.FC = () => {
             Continue to CoopConnect
           </h2>
           <p className="text-sm text-slate-600 mt-2 max-w-md mx-auto">
-            Choose how you would like to participate in the cooperative gig services network.
+            Select the role you wish to sign into via Firebase Authentication.
           </p>
         </div>
 
         {/* 3 Role Options */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
           {/* Customer */}
           <div 
             onClick={() => handleSelectRole('customer')}
@@ -113,34 +104,12 @@ export const RoleSelectPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Demo Switcher Strip */}
-        <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-[#E8DED1] flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-semibold text-slate-700">
-              Hackathon Instant Evaluation:
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleDirectDemo('customer')}
-              className="px-3 py-1.5 rounded-lg bg-teal-100 hover:bg-teal-200 text-[#0D6E66] text-xs font-bold transition-colors"
-            >
-              Demo Customer
-            </button>
-            <button
-              onClick={() => handleDirectDemo('worker')}
-              className="px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-[#C97716] text-xs font-bold transition-colors"
-            >
-              Demo Worker
-            </button>
-            <button
-              onClick={() => handleDirectDemo('admin')}
-              className="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-colors"
-            >
-              Demo Admin
-            </button>
-          </div>
+        {/* Security Info Notice */}
+        <div className="bg-[#FAF7F2] rounded-2xl p-4 border border-[#E8DED1] flex items-center gap-3 text-xs text-slate-600">
+          <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+          <p>
+            Role authorization is verified securely through Firebase Authentication and Cloud Firestore permissions.
+          </p>
         </div>
 
       </div>

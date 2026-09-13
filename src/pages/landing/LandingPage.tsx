@@ -30,9 +30,8 @@ import { UserRole } from '../../types';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, switchDemoRole } = useAuth();
+  const { user, setActiveRole } = useAuth();
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
-  const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
   const getServiceIcon = (iconName: string) => {
     switch (iconName) {
@@ -46,11 +45,13 @@ export const LandingPage: React.FC = () => {
     }
   };
 
-  const handleRoleContinue = async (role: UserRole) => {
-    await switchDemoRole(role);
-    if (role === 'customer') navigate('/customer/dashboard');
-    else if (role === 'worker') navigate('/worker/dashboard');
-    else if (role === 'admin') navigate('/admin/dashboard');
+  const handleRoleContinue = (role: UserRole) => {
+    if (user && user.roles && user.roles.includes(role)) {
+      setActiveRole(role);
+      navigate(`/${role}/dashboard`);
+    } else {
+      navigate(`/login?role=${role}`);
+    }
   };
 
   return (
